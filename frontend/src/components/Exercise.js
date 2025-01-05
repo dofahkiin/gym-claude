@@ -1,18 +1,59 @@
-// components/Exercise.js
+// frontend/src/components/Exercise.js
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
 const Exercise = ({ isWorkoutActive }) => {
   const { id } = useParams();
   const [exercise, setExercise] = useState(null);
+  const [error, setError] = useState(null);
+
+  const fetchExerciseData = async (exerciseId) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      const response = await fetch(`/api/exercises/${exerciseId}`, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch exercise data');
+      }
+      
+      const data = await response.json();
+      setExercise(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const updateExerciseData = async (exerciseId, updatedData) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      const response = await fetch(`/api/exercises/${exerciseId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedData),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update exercise data');
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   useEffect(() => {
-    // Fetch exercise data from API
     fetchExerciseData(id);
   }, [id]);
 
   const handleSetCompletion = async (setIndex) => {
-    // Update set completion status
+    if (!isWorkoutActive) return;
+    
     const updatedSets = exercise.sets.map((set, index) => {
       if (index === setIndex) {
         return { ...set, completed: !set.completed };
@@ -20,8 +61,7 @@ const Exercise = ({ isWorkoutActive }) => {
       return set;
     });
 
-    // Update exercise data
-    await updateExerciseData(id, { ...exercise, sets: updatedSets });
+    await updateExerciseData(id, { sets: updatedSets });
     setExercise({ ...exercise, sets: updatedSets });
   };
 
@@ -33,7 +73,7 @@ const Exercise = ({ isWorkoutActive }) => {
       return set;
     });
 
-    await updateExerciseData(id, { ...exercise, sets: updatedSets });
+    await updateExerciseData(id, { sets: updatedSets });
     setExercise({ ...exercise, sets: updatedSets });
   };
 
@@ -45,11 +85,12 @@ const Exercise = ({ isWorkoutActive }) => {
       return set;
     });
 
-    await updateExerciseData(id, { ...exercise, sets: updatedSets });
+    await updateExerciseData(id, { sets: updatedSets });
     setExercise({ ...exercise, sets: updatedSets });
   };
 
-  if (!exercise) return <div>Loading...</div>;
+  if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
+  if (!exercise) return <div className="p-4">Loading...</div>;
 
   return (
     <div className="container mx-auto p-4">

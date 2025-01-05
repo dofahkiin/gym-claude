@@ -43,10 +43,82 @@ const defaultWorkouts = [
         name: "Machine Lat Pulldown",
         sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
       },
-      // Add other Day 1 exercises...
+      {
+        name: "Machine Leg Curl",
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Machine Shoulder Press",
+        sets: Array(2).fill({ weight: 0, reps: 8, completed: false })
+      },
+      {
+        name: "Dumbbell Alternating Incline Curl",
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Cable Tricep Pushdown (Rope)",
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Barbell Bulgarian Split Squat",
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+      }
     ]
   },
-  // Add Day 2 and 3 workouts...
+  {
+    day: 2,
+    exercises: [
+      {
+        name: "Machine Incline Chest Press",
+        sets: Array(3).fill({ weight: 0, reps: 8, completed: false })
+      },
+      {
+        name: "Cable Seated Row",
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Machine Leg Press",
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Dumbbell Lateral Raise",
+        sets: Array(2).fill({ weight: 0, reps: 15, completed: false })
+      },
+      {
+        name: "Dumbbell Hammer Curl",
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Barbell Seated Tricep Extension",
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+      }
+    ]
+  },
+  {
+    day: 3,
+    exercises: [
+      {
+        name: "Machine Leg Extension",
+        sets: Array(3).fill({ weight: 0, reps: 15, completed: false })
+      },
+      {
+        name: "Machine Seated Leg Curl",
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Barbell Preacher Curl",
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Ez Bar Tricep Extension",
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+      },
+      {
+        name: "Barbell Bulgarian Split Squat",
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+      }
+    ]
+  }
 ];
 
 // Auth routes
@@ -114,32 +186,60 @@ app.get('/api/workouts/:day', auth, async (req, res) => {
   res.json(workout);
 });
 
+// Get a single exercise
+app.get('/api/exercises/:exerciseId', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    let exerciseFound = null;
+
+    // Search through all workouts to find the exercise
+    for (const workout of user.workouts) {
+      const exercise = workout.exercises.find(
+        ex => ex._id.toString() === req.params.exerciseId
+      );
+      if (exercise) {
+        exerciseFound = exercise;
+        break;
+      }
+    }
+
+    if (!exerciseFound) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    res.json(exerciseFound);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update a single exercise
 app.patch('/api/exercises/:exerciseId', auth, async (req, res) => {
   try {
-    const { sets } = req.body;
     const user = req.user;
-    
-    // Find and update the specific exercise
-    let exerciseFound = false;
+    const { sets } = req.body;
+    let exerciseUpdated = false;
+
+    // Update the exercise in the user's workouts
     user.workouts = user.workouts.map(workout => {
       workout.exercises = workout.exercises.map(exercise => {
         if (exercise._id.toString() === req.params.exerciseId) {
-          exerciseFound = true;
+          exerciseUpdated = true;
           return { ...exercise, sets };
         }
         return exercise;
       });
       return workout;
     });
-    
-    if (!exerciseFound) {
+
+    if (!exerciseUpdated) {
       return res.status(404).json({ error: 'Exercise not found' });
     }
-    
+
     await user.save();
     res.json({ message: 'Exercise updated successfully' });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
