@@ -1,4 +1,4 @@
-// components/Home.js
+// frontend/src/components/Home.js
 import React from 'react';
 import { Link } from 'react-router-dom';
 
@@ -8,6 +8,29 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive }) => {
     { id: 2, name: 'Day 2: Workout B' },
     { id: 3, name: 'Day 3: Workout C' },
   ];
+
+  const handleWorkoutToggle = async () => {
+    if (isWorkoutActive) {
+      // If ending workout, reset all checkmarks
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const response = await fetch('/api/workouts/reset', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to reset workout');
+        }
+      } catch (error) {
+        console.error('Error resetting workout:', error);
+        // You might want to show an error message to the user here
+      }
+    }
+    setIsWorkoutActive(!isWorkoutActive);
+  };
 
   return (
     <div className="container mx-auto p-4">
@@ -23,7 +46,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive }) => {
         ))}
       </div>
       <button
-        onClick={() => setIsWorkoutActive(!isWorkoutActive)}
+        onClick={handleWorkoutToggle}
         className={`mt-8 w-full p-4 rounded text-white ${
           isWorkoutActive ? 'bg-red-500' : 'bg-green-500'
         }`}

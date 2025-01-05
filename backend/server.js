@@ -158,6 +158,8 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+
+
 // Middleware to verify JWT
 const auth = async (req, res, next) => {
   try {
@@ -238,6 +240,30 @@ app.patch('/api/exercises/:exerciseId', auth, async (req, res) => {
 
     await user.save();
     res.json({ message: 'Exercise updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Reset checkboxes
+app.post('/api/workouts/reset', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    
+    // Reset all exercise sets' completed status to false
+    user.workouts = user.workouts.map(workout => {
+      workout.exercises = workout.exercises.map(exercise => {
+        exercise.sets = exercise.sets.map(set => ({
+          ...set,
+          completed: false
+        }));
+        return exercise;
+      });
+      return workout;
+    });
+
+    await user.save();
+    res.json({ message: 'All workouts reset successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
