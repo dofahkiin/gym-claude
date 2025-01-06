@@ -117,9 +117,7 @@ const Exercise = ({ isWorkoutActive }) => {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-xl font-bold mb-4">{exercise.name}</h1>
-      {showTimer && (
-        <RestTimer onComplete={handleTimerComplete} />
-      )}
+      
       <div className="space-y-4">
         {exercise.sets.map((set, index) => (
           <div key={index} className="flex items-center space-x-4 bg-white p-4 rounded shadow">
@@ -150,14 +148,7 @@ const Exercise = ({ isWorkoutActive }) => {
         ))}
       </div>
       
-      {/* Add notification */}
-      {notification && (
-        <div className={`fixed top-4 right-4 p-4 rounded shadow-lg ${
-          notification.isError ? 'bg-red-500' : 'bg-green-500'
-        } text-white`}>
-          {notification.message}
-        </div>
-      )}
+      
 
       {/* Add history button */}
       <button
@@ -166,6 +157,22 @@ const Exercise = ({ isWorkoutActive }) => {
       >
         View History
       </button>
+
+      {/* Timer moved below the View History button */}
+      {showTimer && (
+        <div className="mt-4">
+          <RestTimer onComplete={handleTimerComplete} />
+        </div>
+      )}
+      
+      {/* Add notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 p-4 rounded shadow-lg ${
+          notification.isError ? 'bg-red-500' : 'bg-green-500'
+        } text-white`}>
+          {notification.message}
+        </div>
+      )}
       
     </div>
   );
