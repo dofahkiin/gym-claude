@@ -1,7 +1,7 @@
 // frontend/src/components/RestTimer.js
 import React, { useState, useEffect } from 'react';
 
-const TOTAL_TIME = 3; // 3 seconds (for testing)
+const TOTAL_TIME = 90; // 3 seconds (for testing)
 
 const RestTimer = ({ onComplete }) => {
   const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
