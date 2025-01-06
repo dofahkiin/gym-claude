@@ -1,12 +1,13 @@
 // frontend/src/components/Exercise.js
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import RestTimer from './RestTimer';
 
 const Exercise = ({ isWorkoutActive }) => {
   const { id } = useParams();
   const [exercise, setExercise] = useState(null);
   const [error, setError] = useState(null);
-
+  const [showTimer, setShowTimer] = useState(false);
   const navigate = useNavigate();
   const [notification, setNotification] = useState(null);
 
@@ -69,13 +70,21 @@ const Exercise = ({ isWorkoutActive }) => {
     
     const updatedSets = exercise.sets.map((set, index) => {
       if (index === setIndex) {
-        return { ...set, completed: !set.completed };
+        const newCompleted = !set.completed;
+        if (newCompleted) {
+          setShowTimer(true);
+        }
+        return { ...set, completed: newCompleted };
       }
       return set;
     });
 
     await updateExerciseData(id, { sets: updatedSets });
     setExercise({ ...exercise, sets: updatedSets });
+  };
+
+  const handleTimerComplete = () => {
+    setShowTimer(false);
   };
 
   const handleWeightChange = async (setIndex, weight) => {
@@ -108,6 +117,9 @@ const Exercise = ({ isWorkoutActive }) => {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-xl font-bold mb-4">{exercise.name}</h1>
+      {showTimer && (
+        <RestTimer onComplete={handleTimerComplete} />
+      )}
       <div className="space-y-4">
         {exercise.sets.map((set, index) => (
           <div key={index} className="flex items-center space-x-4 bg-white p-4 rounded shadow">
