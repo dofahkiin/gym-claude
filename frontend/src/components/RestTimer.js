@@ -1,49 +1,45 @@
 // frontend/src/components/RestTimer.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 
-const TOTAL_TIME = 3; // 1 minute and 30 seconds
+const TOTAL_TIME = 3; // 3 seconds (for testing)
 
 const RestTimer = ({ onComplete }) => {
   const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
-  const [audioContext, setAudioContext] = useState(null);
-
-  // Initialize audio context
-  useEffect(() => {
-    const context = new (window.AudioContext || window.webkitAudioContext)();
-    setAudioContext(context);
+  
+  // Create beep sound function
+  const playBeep = () => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
     
-    return () => {
-      if (context) {
-        context.close();
-      }
-    };
-  }, []);
-
-  // Function to play beep sound
-  const playBeep = useCallback(() => {
-    if (audioContext) {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(880, audioContext.currentTime); // A5 note
-      
-      gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
-      
-      oscillator.start();
-      oscillator.stop(audioContext.currentTime + 0.1);
-    }
-  }, [audioContext]);
+    // Configure oscillator
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // frequency in hertz
+    
+    // Configure gain (volume)
+    gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+    
+    // Connect nodes
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Play sound
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.5);
+    
+    // Cleanup
+    setTimeout(() => {
+      audioContext.close();
+    }, 1000);
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(interval);
-          playBeep();
+          playBeep(); // Play beep when timer ends
           onComplete();
           return 0;
         }
@@ -52,7 +48,7 @@ const RestTimer = ({ onComplete }) => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [onComplete, playBeep]);
+  }, [onComplete]);
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
