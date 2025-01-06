@@ -1,6 +1,7 @@
 {
   "name": "gym-tracker-frontend",
   "version": "1.0.0",
+  "homepage": "/gym",
   "description": "Gym tracking application frontend",
   "proxy": "http://localhost:3000",
   "scripts": {

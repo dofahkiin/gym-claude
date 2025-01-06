@@ -6,6 +6,7 @@ import SignUp from './components/SignUp';
 import Home from './components/Home';
 import WorkoutDay from './components/WorkoutDay';
 import Exercise from './components/Exercise';
+import { Link } from 'react-router-dom';
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -20,7 +21,7 @@ const App = () => {
   }, []);
 
   return (
-    <Router>
+    <Router basename="/gym">
       <div className="min-h-screen bg-gray-100">
         <nav className="bg-white shadow-lg p-4">
           <div className="container mx-auto flex justify-between items-center">
@@ -39,8 +40,8 @@ const App = () => {
               </>
             ) : (
               <div className="space-x-4">
-                <a href="/login" className="text-blue-500">Login</a>
-                <a href="/signup" className="text-blue-500">Sign Up</a>
+                <Link to="/login" className="text-blue-500">Login</Link>
+                <Link to="/signup" className="text-blue-500">Sign Up</Link>
               </div>
             )}
           </div>
