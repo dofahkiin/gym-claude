@@ -7,6 +7,7 @@ import Home from './components/Home';
 import WorkoutDay from './components/WorkoutDay';
 import Exercise from './components/Exercise';
 import { Link } from 'react-router-dom';
+import ExerciseHistory from './components/ExerciseHistory'; 
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -78,6 +79,12 @@ const App = () => {
                 <Navigate to="/login" />
               )
             } 
+          />
+          <Route 
+            path="/exercise/:id/history" 
+            element={
+              user ? <ExerciseHistory /> : <Navigate to="/login" />
+            }
           />
         </Routes>
       </div>

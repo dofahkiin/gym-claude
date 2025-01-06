@@ -23,6 +23,13 @@ const userSchema = new mongoose.Schema({
         weight: Number,
         reps: Number,
         completed: Boolean
+      }],
+      history: [{
+        date: Date,
+        sets: [{
+          weight: Number,
+          reps: Number
+        }]
       }]
     }]
   }]
@@ -160,6 +167,7 @@ app.post('/api/login', async (req, res) => {
 
 
 
+
 // Middleware to verify JWT
 const auth = async (req, res, next) => {
   try {
@@ -245,6 +253,32 @@ app.patch('/api/exercises/:exerciseId', auth, async (req, res) => {
   }
 });
 
+// Endpoint to get exercise history
+app.get('/api/exercises/:exerciseId/history', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    let exerciseHistory = null;
+
+    for (const workout of user.workouts) {
+      const exercise = workout.exercises.find(
+        ex => ex._id.toString() === req.params.exerciseId
+      );
+      if (exercise) {
+        exerciseHistory = exercise.history || [];
+        break;
+      }
+    }
+
+    if (exerciseHistory === null) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    res.json(exerciseHistory);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Reset checkboxes
 app.post('/api/workouts/reset', auth, async (req, res) => {
   try {
@@ -264,6 +298,47 @@ app.post('/api/workouts/reset', auth, async (req, res) => {
 
     await user.save();
     res.json({ message: 'All workouts reset successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint to save workout history
+app.post('/api/workouts/complete', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    const currentDate = new Date();
+    
+    // Save history for completed sets before resetting
+    user.workouts = user.workouts.map(workout => {
+      workout.exercises = workout.exercises.map(exercise => {
+        const completedSets = exercise.sets.filter(set => set.completed);
+        if (completedSets.length > 0) {
+          if (!exercise.history) {
+            exercise.history = [];
+          }
+          exercise.history.push({
+            date: currentDate,
+            sets: completedSets.map(set => ({
+              weight: set.weight,
+              reps: set.reps
+            }))
+          });
+        }
+        
+        // Reset all sets to uncompleted
+        exercise.sets = exercise.sets.map(set => ({
+          ...set,
+          completed: false
+        }));
+        
+        return exercise;
+      });
+      return workout;
+    });
+
+    await user.save();
+    res.json({ message: 'Workout completed and history saved successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

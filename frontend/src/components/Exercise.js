@@ -1,11 +1,24 @@
 // frontend/src/components/Exercise.js
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 const Exercise = ({ isWorkoutActive }) => {
   const { id } = useParams();
   const [exercise, setExercise] = useState(null);
   const [error, setError] = useState(null);
+
+  const navigate = useNavigate();
+  const [notification, setNotification] = useState(null);
+
+  const showNotification = (message, isError = false) => {
+    setNotification({
+      message,
+      isError
+    });
+    setTimeout(() => {
+      setNotification(null);
+    }, 3000);
+  };
 
   const fetchExerciseData = async (exerciseId) => {
     try {
@@ -124,6 +137,24 @@ const Exercise = ({ isWorkoutActive }) => {
           </div>
         ))}
       </div>
+      
+      {/* Add notification */}
+      {notification && (
+        <div className={`fixed top-4 right-4 p-4 rounded shadow-lg ${
+          notification.isError ? 'bg-red-500' : 'bg-green-500'
+        } text-white`}>
+          {notification.message}
+        </div>
+      )}
+
+      {/* Add history button */}
+      <button
+        onClick={() => navigate(`/exercise/${id}/history`)}
+        className="mt-8 w-full bg-blue-500 text-white p-4 rounded hover:bg-blue-600"
+      >
+        View History
+      </button>
+      
     </div>
   );
 };
