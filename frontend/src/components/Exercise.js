@@ -147,8 +147,6 @@ const Exercise = ({ isWorkoutActive }) => {
           </div>
         ))}
       </div>
-      
-      
 
       {/* Add history button */}
       <button
@@ -173,7 +171,6 @@ const Exercise = ({ isWorkoutActive }) => {
           {notification.message}
         </div>
       )}
-      
     </div>
   );
 };

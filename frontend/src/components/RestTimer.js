@@ -1,7 +1,7 @@
 // frontend/src/components/RestTimer.js
 import React, { useState, useEffect, useCallback } from 'react';
 
-const TOTAL_TIME = 90; // 1 minute and 30 seconds
+const TOTAL_TIME = 3; // 1 minute and 30 seconds
 
 const RestTimer = ({ onComplete }) => {
   const [timeLeft, setTimeLeft] = useState(TOTAL_TIME);
