@@ -1,28 +1,27 @@
 // frontend/src/components/RestTimer.js
 import React, { useState, useEffect } from 'react';
 
-const RestTimer = ({ duration = 90, onComplete }) => {
-  const [startTime] = useState(Date.now());
-  const [progress, setProgress] = useState(100); // Start at 100%
+const RestTimer = ({ duration = 90, onComplete, startTime }) => {
+  const [progress, setProgress] = useState(100);
   const [timeLeft, setTimeLeft] = useState(duration);
 
   useEffect(() => {
     const timer = setInterval(() => {
       const currentTime = Date.now();
-      const elapsedTime = (currentTime - startTime) / 1000; // Convert to seconds
+      const elapsedTime = (currentTime - startTime) / 1000;
       const remaining = Math.max(duration - elapsedTime, 0);
-      const newProgress = Math.max(100 - (elapsedTime / duration) * 100, 0); // Reverse progress
+      const newProgress = Math.max(100 - (elapsedTime / duration) * 100, 0);
       
       setTimeLeft(remaining);
       setProgress(newProgress);
 
       if (elapsedTime >= duration) {
         clearInterval(timer);
-        setProgress(0); // Fully empty at end
+        setProgress(0);
         setTimeLeft(0);
         onComplete();
       }
-    }, 100); // Update every 100ms for smooth animation
+    }, 100);
 
     return () => clearInterval(timer);
   }, [duration, startTime, onComplete]);
