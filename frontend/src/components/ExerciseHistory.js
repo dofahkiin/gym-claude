@@ -45,7 +45,10 @@ const ExerciseHistory = () => {
       </div>
       
       <div className="space-y-6">
-        {history.map((entry, index) => (
+        {history
+          .slice()
+          .reverse()
+          .map((entry, index) => (
           <div key={index} className="bg-white p-4 rounded shadow">
             <h2 className="font-semibold mb-3">
               Date: {new Date(entry.date).toLocaleDateString()}
