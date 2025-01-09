@@ -36,14 +36,14 @@ const RestTimer = ({ duration = 90, onComplete }) => {
 
   return (
     <div className="relative w-full">
-      <div className="w-full bg-gray-200 rounded-full h-2.5">
+      <div className="w-full bg-gray-200 rounded-full h-8">
         <div 
-          className="bg-blue-600 h-2.5 rounded-full transition-all duration-100"
+          className="bg-blue-600 h-8 rounded-full transition-all duration-100"
           style={{ width: `${progress}%` }}
         />
-      </div>
-      <div className="absolute top-4 left-0 right-0 text-center text-sm">
-        {formatTime(timeLeft)}
+        <div className="absolute top-0 left-0 right-0 h-8 flex items-center justify-center text-sm font-bold text-white">
+          {formatTime(timeLeft)}
+        </div>
       </div>
     </div>
   );
