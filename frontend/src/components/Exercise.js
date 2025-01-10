@@ -1,6 +1,7 @@
 // frontend/src/components/Exercise.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { debounce } from 'lodash';
 import RestTimer from './RestTimer';
 
 const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
@@ -170,6 +171,38 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
     }
   }, [exercise, isWorkoutActive, updateExerciseData]);
 
+  // Add debounced update function
+  const debouncedUpdate = useCallback(
+    debounce(async (exerciseId, updatedSets) => {
+      try {
+        await updateExerciseData(exerciseId, { sets: updatedSets });
+      } catch (err) {
+        console.error('Failed to save exercise data:', err);
+      }
+    }, 500),
+    []
+  );
+
+  // Handle input changes
+  const handleInputChange = useCallback(async (index, field, value) => {
+    if (!exercise) return;
+
+    const updatedSets = exercise.sets.map((set, i) => 
+      i === index 
+        ? { 
+            ...set, 
+            [field]: field === 'weight' ? parseFloat(value) : parseInt(value)
+          } 
+        : set
+    );
+
+    // Update local state immediately
+    setExercise(prev => ({ ...prev, sets: updatedSets }));
+
+    // Debounce the API call
+    debouncedUpdate(exercise._id, updatedSets);
+  }, [exercise, debouncedUpdate]);
+
   if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
   if (!exercise || !Array.isArray(exercise.sets)) {
     console.log('Current exercise state:', exercise); // Debug log
@@ -189,14 +222,14 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
               value={set.weight}
               className="w-20 p-2 border rounded"
               step="0.5"
-              readOnly
+              onChange={(e) => handleInputChange(index, 'weight', e.target.value)}
             />
             <span>Kg</span>
             <input
               type="number"
               value={set.reps}
               className="w-20 p-2 border rounded"
-              readOnly
+              onChange={(e) => handleInputChange(index, 'reps', e.target.value)}
             />
             <span>Reps</span>
             <button
