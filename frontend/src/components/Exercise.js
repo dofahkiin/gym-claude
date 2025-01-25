@@ -1,13 +1,14 @@
-// frontend/src/components/Exercise.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom';
 import { debounce } from 'lodash';
 import RestTimer from './RestTimer';
 
 const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
+  const { workoutDay, exercises } = useOutletContext();
   const { id } = useParams();
   const [exercise, setExercise] = useState(initialExercise);
   const [error, setError] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(() => {
@@ -23,6 +24,16 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
   });
 
   const navigate = useNavigate();
+
+  // Update current index when exercise changes
+  useEffect(() => {
+    if (exercises && exercise) {
+      const index = exercises.findIndex(ex => ex._id === exercise._id);
+      if (index !== -1) {
+        setCurrentIndex(index);
+      }
+    }
+  }, [exercise, exercises]);
 
   // Fetch exercise data
   useEffect(() => {
@@ -63,6 +74,17 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
     fetchExerciseData();
   }, [id]);
 
+  // Handle navigation
+  const handleNavigation = useCallback((direction) => {
+    if (!exercises || !workoutDay) return;
+    
+    const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    if (newIndex >= 0 && newIndex < exercises.length) {
+      const nextExercise = exercises[newIndex];
+      navigate(`/workout/${workoutDay}/exercise/${nextExercise._id}`);
+    }
+  }, [currentIndex, exercises, navigate, workoutDay]);
+
   // Handle timer completion
   const handleTimerComplete = useCallback(() => {
     if (!exercise) return;
@@ -101,7 +123,6 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
         throw new Error('No exercise ID provided');
       }
 
-      // First, update the exercise
       const updateResponse = await fetch(`/api/exercises/${exerciseId}`, {
         method: 'PATCH',
         headers: {
@@ -118,7 +139,6 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
         throw new Error(`Failed to update exercise data: ${errorData.message || updateResponse.statusText}`);
       }
 
-      // Then fetch the updated exercise data
       const getResponse = await fetch(`/api/exercises/${exerciseId}`, {
         headers: {
           'Authorization': `Bearer ${user.token}`,
@@ -130,12 +150,6 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
       }
 
       const data = await getResponse.json();
-      console.log('Updated exercise data:', data);
-
-      if (!data || !Array.isArray(data.sets)) {
-        throw new Error('Invalid exercise data received');
-      }
-
       setExercise(data);
       return data;
     } catch (err) {
@@ -196,16 +210,12 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
         : set
     );
 
-    // Update local state immediately
     setExercise(prev => ({ ...prev, sets: updatedSets }));
-
-    // Debounce the API call
     debouncedUpdate(exercise._id, updatedSets);
   }, [exercise, debouncedUpdate]);
 
   if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
   if (!exercise || !Array.isArray(exercise.sets)) {
-    console.log('Current exercise state:', exercise); // Debug log
     return <div className="p-4">Loading...</div>;
   }
 
@@ -213,6 +223,37 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
     <div className="container mx-auto p-4">
       <h1 className="text-xl font-bold mb-4">{exercise.name}</h1>
       
+      {/* Progress indicator */}
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm text-gray-600">
+            Exercise {currentIndex + 1} of {exercises?.length || 0}
+          </span>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => handleNavigation('prev')}
+              disabled={currentIndex === 0}
+              className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600 transition-colors"
+            >
+              ← Previous
+            </button>
+            <button
+              onClick={() => handleNavigation('next')}
+              disabled={currentIndex === (exercises?.length || 0) - 1}
+              className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600 transition-colors"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div
+            className="bg-blue-600 h-2.5 rounded-full"
+            style={{ width: `${((currentIndex + 1) / (exercises?.length || 1)) * 100}%` }}
+          />
+        </div>
+      </div>
+
       <div className="space-y-4">
         {exercise.sets.map((set, index) => (
           <div key={index} className="flex items-center space-x-4 bg-white p-4 rounded shadow">

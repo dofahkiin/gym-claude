@@ -68,18 +68,15 @@ const App = () => {
             path="/workout/:day" 
             element={
               user ? <WorkoutDay /> : <Navigate to="/login" />
-            } 
-          />
-          <Route 
-            path="/exercise/:id" 
-            element={
-              user ? (
+            }
+          >
+            <Route 
+              path="exercise/:id" 
+              element={
                 <Exercise isWorkoutActive={isWorkoutActive} />
-              ) : (
-                <Navigate to="/login" />
-              )
-            } 
-          />
+              } 
+            />
+          </Route>
           <Route 
             path="/exercise/:id/history" 
             element={

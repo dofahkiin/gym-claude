@@ -1,6 +1,6 @@
 // frontend/src/components/WorkoutDay.js
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Outlet } from 'react-router-dom';
 
 const WorkoutDay = () => {
   const { day } = useParams();
@@ -34,7 +34,7 @@ const WorkoutDay = () => {
         {workout.exercises.map((exercise) => (
           <Link
             key={exercise._id}
-            to={`/exercise/${exercise._id}`}
+            to={`/workout/${day}/exercise/${exercise._id}`}
             className="block bg-white p-4 rounded shadow hover:shadow-lg transition"
           >
             <div className="flex justify-between items-center">
@@ -46,6 +46,9 @@ const WorkoutDay = () => {
           </Link>
         ))}
       </div>
+      
+      {/* Render nested routes */}
+      <Outlet context={{ workoutDay: day, exercises: workout.exercises }} />
     </div>
   );
 };

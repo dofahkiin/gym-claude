@@ -1,15 +1,20 @@
 // server.js
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 
+if (!process.env.JWT_SECRET || !process.env.MONGODB_URI) {
+  throw new Error('Missing required environment variables');
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect('mongodb://localhost/gym-tracker');
+mongoose.connect(process.env.MONGODB_URI);
 
 // Models
 const userSchema = new mongoose.Schema({
@@ -142,7 +147,7 @@ app.post('/api/signup', async (req, res) => {
     
     await user.save();
     
-    const token = jwt.sign({ userId: user._id }, 'your-secret-key');
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
     res.json({ token, email: user.email });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -158,7 +163,7 @@ app.post('/api/login', async (req, res) => {
       throw new Error('Invalid credentials');
     }
     
-    const token = jwt.sign({ userId: user._id }, 'your-secret-key');
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
     res.json({ token, email: user.email });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -172,7 +177,7 @@ app.post('/api/login', async (req, res) => {
 const auth = async (req, res, next) => {
   try {
     const token = req.header('Authorization').replace('Bearer ', '');
-    const decoded = jwt.verify(token, 'your-secret-key');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findOne({ _id: decoded.userId });
     
     if (!user) {
@@ -348,4 +353,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
