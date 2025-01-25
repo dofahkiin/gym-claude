@@ -238,6 +238,12 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
               ← Previous
             </button>
             <button
+              onClick={() => navigate('/')}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Home
+            </button>
+            <button
               onClick={() => handleNavigation('next')}
               disabled={currentIndex === (exercises?.length || 0) - 1}
               className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600 transition-colors"
