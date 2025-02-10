@@ -1,6 +1,9 @@
 # Environment variables
 backend/.env
 
+
+**/build
+
 # Node modules
 node_modules/
 
