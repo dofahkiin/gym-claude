@@ -17,6 +17,7 @@ const SignUp = ({ setUser }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
+        credentials: 'include' // Important for cookies to be saved
       });
 
       const data = await response.json();
@@ -25,6 +26,7 @@ const SignUp = ({ setUser }) => {
         throw new Error(data.error || 'Signup failed');
       }
 
+      // Save user data to localStorage as a fallback
       localStorage.setItem('user', JSON.stringify(data));
       setUser(data);
       navigate('/');

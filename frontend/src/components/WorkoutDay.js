@@ -14,6 +14,7 @@ const WorkoutDay = () => {
           headers: {
             'Authorization': `Bearer ${user.token}`,
           },
+          credentials: 'include' // Add this to include cookies in requests
         });
         const data = await response.json();
         setWorkout(data);

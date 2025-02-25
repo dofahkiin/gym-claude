@@ -44,6 +44,7 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
           headers: {
             'Authorization': `Bearer ${user.token}`,
           },
+          credentials: 'include' // Add this to include cookies in requests
         });
         
         if (!response.ok) {
@@ -132,6 +133,7 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
         body: JSON.stringify({
           sets: updatedData.sets
         }),
+        credentials: 'include' // Add this to include cookies in requests
       });
       
       if (!updateResponse.ok) {
@@ -143,6 +145,7 @@ const Exercise = ({ exercise: initialExercise, isWorkoutActive }) => {
         headers: {
           'Authorization': `Bearer ${user.token}`,
         },
+        credentials: 'include' // Add this to include cookies in requests
       });
 
       if (!getResponse.ok) {

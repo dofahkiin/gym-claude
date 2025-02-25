@@ -16,6 +16,7 @@ const ExerciseHistory = () => {
           headers: {
             'Authorization': `Bearer ${user.token}`,
           },
+          credentials: 'include' // Add this to include cookies in requests
         });
         
         if (!response.ok) {

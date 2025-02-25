@@ -5,14 +5,19 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+const cookieParser = require('cookie-parser'); // Add cookie-parser
 
 if (!process.env.JWT_SECRET || !process.env.MONGODB_URI) {
   throw new Error('Missing required environment variables');
 }
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: true, // Allow request origin
+  credentials: true // Allow cookies to be sent with requests
+}));
 app.use(express.json());
+app.use(cookieParser()); // Parse cookies
 
 mongoose.connect(process.env.MONGODB_URI);
 
@@ -133,6 +138,14 @@ const defaultWorkouts = [
   }
 ];
 
+// Set cookie options
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production', // Set to true in production
+  sameSite: 'Lax',
+  maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+};
+
 // Auth routes
 app.post('/api/signup', async (req, res) => {
   try {
@@ -147,7 +160,11 @@ app.post('/api/signup', async (req, res) => {
     
     await user.save();
     
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    
+    // Set token in HTTP-only cookie
+    res.cookie('auth_token', token, cookieOptions);
+    
     res.json({ token, email: user.email });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -163,25 +180,76 @@ app.post('/api/login', async (req, res) => {
       throw new Error('Invalid credentials');
     }
     
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET);
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    
+    // Set token in HTTP-only cookie
+    res.cookie('auth_token', token, cookieOptions);
+    
     res.json({ token, email: user.email });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
 
+app.post('/api/logout', (req, res) => {
+  // Clear the authentication cookie
+  res.clearCookie('auth_token');
+  res.json({ message: 'Logged out successfully' });
+});
 
-
-
-// Middleware to verify JWT
-const auth = async (req, res, next) => {
+// Endpoint to check if user is authenticated
+app.get('/api/auth/check', async (req, res) => {
   try {
-    const token = req.header('Authorization').replace('Bearer ', '');
+    // Check if token exists in cookie
+    const token = req.cookies.auth_token;
+    
+    if (!token) {
+      return res.status(401).json({ authenticated: false });
+    }
+    
+    // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findOne({ _id: decoded.userId });
     
     if (!user) {
-      throw new Error();
+      return res.status(401).json({ authenticated: false });
+    }
+    
+    res.json({ 
+      authenticated: true, 
+      user: { 
+        email: user.email,
+        token // Include token in response for client-side storage
+      } 
+    });
+  } catch (error) {
+    res.status(401).json({ authenticated: false });
+  }
+});
+
+// Middleware to verify JWT from cookie or header
+const auth = async (req, res, next) => {
+  try {
+    let token;
+    
+    // Try to get token from cookie first
+    if (req.cookies.auth_token) {
+      token = req.cookies.auth_token;
+    } 
+    // Fallback to Authorization header
+    else if (req.header('Authorization')) {
+      token = req.header('Authorization').replace('Bearer ', '');
+    }
+    
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ _id: decoded.userId });
+    
+    if (!user) {
+      throw new Error('User not found');
     }
     
     req.user = user;
