@@ -1,8 +1,8 @@
-// frontend/src/components/ExerciseHistory.js
+// frontend/src/components/ExerciseHistory.js with complete dark mode
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
-const ExerciseHistory = () => {
+const ExerciseHistory = ({ darkMode }) => {
   const { id } = useParams();
   const [history, setHistory] = useState([]);
   const [exerciseName, setExerciseName] = useState('');
@@ -46,11 +46,11 @@ const ExerciseHistory = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="flex items-center">
-          <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <span className="text-lg font-medium text-gray-700">Loading history...</span>
+          <span className="text-lg font-medium text-gray-700 dark:text-gray-200">Loading history...</span>
         </div>
       </div>
     );
@@ -60,12 +60,12 @@ const ExerciseHistory = () => {
     <div>
       <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">{exerciseName || 'Exercise'} History</h1>
-          <p className="text-gray-600">Track your progress over time</p>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">{exerciseName || 'Exercise'} History</h1>
+          <p className="text-gray-600 dark:text-gray-300">Track your progress over time</p>
         </div>
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center space-x-2 bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full hover:bg-indigo-200 transition-colors"
+          className="flex items-center space-x-2 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 px-4 py-2 rounded-full hover:bg-indigo-200 dark:hover:bg-indigo-900/60 transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -76,12 +76,12 @@ const ExerciseHistory = () => {
       
       <div className="space-y-6">
         {history.length === 0 ? (
-          <div className="bg-gray-50 rounded-lg p-8 text-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-8 text-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-gray-500 mb-2">No history available</p>
-            <p className="text-gray-400 text-sm">Complete sets of this exercise to see your progress</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-2">No history available</p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm">Complete sets of this exercise to see your progress</p>
           </div>
         ) : (
           history
@@ -90,11 +90,11 @@ const ExerciseHistory = () => {
             .map((entry, index) => (
             <div 
               key={index} 
-              className={`bg-white rounded-lg shadow overflow-hidden ${index === 0 ? 'ring-2 ring-indigo-500' : ''}`}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden ${index === 0 ? 'ring-2 ring-indigo-500 dark:ring-indigo-600' : ''}`}
             >
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b">
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-750 px-6 py-4 border-b dark:border-gray-700">
                 <div className="flex flex-wrap justify-between items-center">
-                  <h2 className="font-semibold text-gray-800">
+                  <h2 className="font-semibold text-gray-800 dark:text-gray-200">
                     {new Date(entry.date).toLocaleDateString(undefined, { 
                       weekday: 'long', 
                       year: 'numeric', 
@@ -103,7 +103,7 @@ const ExerciseHistory = () => {
                     })}
                   </h2>
                   {index === 0 && (
-                    <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">
+                    <span className="bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 text-xs px-2 py-1 rounded-full">
                       Most Recent
                     </span>
                   )}
@@ -112,18 +112,18 @@ const ExerciseHistory = () => {
               <div className="p-6">
                 <div className="space-y-3">
                   {entry.sets.map((set, setIndex) => (
-                    <div key={setIndex} className="flex items-center space-x-4 p-2 rounded hover:bg-gray-50">
-                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-800 font-medium flex-shrink-0">
+                    <div key={setIndex} className="flex items-center space-x-4 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/60 rounded-full flex items-center justify-center text-indigo-800 dark:text-indigo-300 font-medium flex-shrink-0">
                         {setIndex + 1}
                       </div>
                       <div className="flex items-center gap-6">
                         <div className="flex flex-col">
-                          <span className="text-gray-500 text-xs">Weight</span>
-                          <span className="font-medium">{set.weight} kg</span>
+                          <span className="text-gray-500 dark:text-gray-400 text-xs">Weight</span>
+                          <span className="font-medium text-gray-800 dark:text-gray-200">{set.weight} kg</span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-gray-500 text-xs">Reps</span>
-                          <span className="font-medium">{set.reps}</span>
+                          <span className="text-gray-500 dark:text-gray-400 text-xs">Reps</span>
+                          <span className="font-medium text-gray-800 dark:text-gray-200">{set.reps}</span>
                         </div>
                       </div>
                     </div>
