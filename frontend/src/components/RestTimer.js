@@ -1,7 +1,7 @@
 // frontend/src/components/RestTimer.js
 import React, { useState, useEffect } from 'react';
 
-const RestTimer = ({ duration = 90, onComplete, startTime }) => {
+const RestTimer = ({ duration = 90, onComplete, startTime, darkMode }) => {
   const [progress, setProgress] = useState(100);
   const [timeLeft, setTimeLeft] = useState(duration);
 
@@ -36,14 +36,14 @@ const RestTimer = ({ duration = 90, onComplete, startTime }) => {
   // Get color based on time remaining
   const getColorClass = () => {
     const percentRemaining = (timeLeft / duration) * 100;
-    if (percentRemaining > 66) return 'bg-green-500';
-    if (percentRemaining > 33) return 'bg-yellow-500';
-    return 'bg-red-500';
+    if (percentRemaining > 66) return 'bg-green-500 dark:bg-green-600';
+    if (percentRemaining > 33) return 'bg-yellow-500 dark:bg-yellow-600';
+    return 'bg-red-500 dark:bg-red-600';
   };
 
   return (
     <div className="relative w-full">
-      <div className="w-full bg-gray-200 rounded-full h-10 shadow-inner overflow-hidden">
+      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-10 shadow-inner overflow-hidden">
         <div 
           className={`${getColorClass()} h-10 rounded-full transition-all duration-100`}
           style={{ width: `${progress}%` }}
@@ -52,7 +52,7 @@ const RestTimer = ({ duration = 90, onComplete, startTime }) => {
           {formatTime(timeLeft)}
         </div>
       </div>
-      <p className="text-center mt-2 text-gray-600 text-sm">Rest between sets</p>
+      <p className="text-center mt-2 text-gray-600 dark:text-gray-300 text-sm">Rest between sets</p>
     </div>
   );
 };

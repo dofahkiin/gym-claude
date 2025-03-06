@@ -6,6 +6,7 @@ import SignUp from './components/SignUp';
 import Home from './components/Home';
 import WorkoutDay from './components/WorkoutDay';
 import Exercise from './components/Exercise';
+import ThemeToggle from './components/ThemeToggle';
 import { Link } from 'react-router-dom';
 import ExerciseHistory from './components/ExerciseHistory'; 
 
@@ -13,8 +14,15 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
+    // Initialize dark mode preference from localStorage
+    const savedTheme = localStorage.getItem('darkMode');
+    if (savedTheme === 'true') {
+      setDarkMode(true);
+    }
+
     const checkAuthStatus = async () => {
       try {
         // Check for auth status via cookie
@@ -74,8 +82,8 @@ const App = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="text-xl font-semibold text-gray-700">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="text-xl font-semibold text-gray-700 dark:text-gray-200">
           <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -88,8 +96,8 @@ const App = () => {
 
   return (
     <Router basename="/gym">
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 font-sans">
-        <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 font-sans text-gray-900 dark:text-gray-100 transition-colors duration-200">
+        <header className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg dark:from-indigo-900 dark:to-purple-900 dark:shadow-gray-900/30">
           <div className="container mx-auto px-4 py-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-2">
@@ -103,6 +111,7 @@ const App = () => {
                 <Link to="/" className="text-xl font-bold tracking-tight">GymTracker</Link>
               </div>
               <div className="flex items-center space-x-4">
+                <ThemeToggle darkMode={darkMode} setDarkMode={setDarkMode} />
                 {user ? (
                   <>
                     <span className="font-medium hidden md:inline">{user.email}</span>
@@ -126,8 +135,8 @@ const App = () => {
 
         <main className="container mx-auto px-4 py-8">
           <Routes>
-            <Route path="/login" element={<Login setUser={setUser} />} />
-            <Route path="/signup" element={<SignUp setUser={setUser} />} />
+            <Route path="/login" element={<Login setUser={setUser} darkMode={darkMode} />} />
+            <Route path="/signup" element={<SignUp setUser={setUser} darkMode={darkMode} />} />
             <Route 
               path="/" 
               element={
@@ -135,6 +144,7 @@ const App = () => {
                   <Home 
                     isWorkoutActive={isWorkoutActive} 
                     setIsWorkoutActive={setIsWorkoutActive}
+                    darkMode={darkMode}
                   />
                 ) : (
                   <Navigate to="/login" />
@@ -144,19 +154,19 @@ const App = () => {
             <Route 
               path="/workout/:day" 
               element={
-                user ? <WorkoutDay /> : <Navigate to="/login" />
+                user ? <WorkoutDay darkMode={darkMode} /> : <Navigate to="/login" />
               }
             />
             <Route 
               path="/workout/:day/exercise/:id" 
               element={
-                user ? <Exercise isWorkoutActive={isWorkoutActive} /> : <Navigate to="/login" />
+                user ? <Exercise isWorkoutActive={isWorkoutActive} darkMode={darkMode} /> : <Navigate to="/login" />
               } 
             />
             <Route 
               path="/exercise/:id/history" 
               element={
-                user ? <ExerciseHistory /> : <Navigate to="/login" />
+                user ? <ExerciseHistory darkMode={darkMode} /> : <Navigate to="/login" />
               }
             />
           </Routes>
