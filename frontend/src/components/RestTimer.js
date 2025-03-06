@@ -33,17 +33,26 @@ const RestTimer = ({ duration = 90, onComplete, startTime }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Get color based on time remaining
+  const getColorClass = () => {
+    const percentRemaining = (timeLeft / duration) * 100;
+    if (percentRemaining > 66) return 'bg-green-500';
+    if (percentRemaining > 33) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
   return (
     <div className="relative w-full">
-      <div className="w-full bg-gray-200 rounded-full h-8">
+      <div className="w-full bg-gray-200 rounded-full h-10 shadow-inner overflow-hidden">
         <div 
-          className="bg-blue-600 h-8 rounded-full transition-all duration-100"
+          className={`${getColorClass()} h-10 rounded-full transition-all duration-100`}
           style={{ width: `${progress}%` }}
         />
-        <div className="absolute top-0 left-0 right-0 h-8 flex items-center justify-center text-sm font-bold text-white">
+        <div className="absolute top-0 left-0 right-0 h-10 flex items-center justify-center text-base font-bold text-white drop-shadow-md">
           {formatTime(timeLeft)}
         </div>
       </div>
+      <p className="text-center mt-2 text-gray-600 text-sm">Rest between sets</p>
     </div>
   );
 };

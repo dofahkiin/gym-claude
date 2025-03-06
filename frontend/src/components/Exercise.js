@@ -10,6 +10,7 @@ const Exercise = ({ isWorkoutActive }) => {
   const [error, setError] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [exercises, setExercises] = useState([]);
+  const [loading, setLoading] = useState(true);
   
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(null);
@@ -48,6 +49,7 @@ const Exercise = ({ isWorkoutActive }) => {
   useEffect(() => {
     const fetchExerciseData = async () => {
       try {
+        setLoading(true);
         const user = JSON.parse(localStorage.getItem('user'));
         const response = await fetch(`/api/exercises/${id}`, {
           headers: {
@@ -78,6 +80,8 @@ const Exercise = ({ isWorkoutActive }) => {
         }
       } catch (err) {
         setError(err.message);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -236,93 +240,101 @@ const Exercise = ({ isWorkoutActive }) => {
     debouncedUpdate(exercise._id, updatedSets);
   }, [exercise, debouncedUpdate]);
 
-  if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
-  if (!exercise || !Array.isArray(exercise.sets)) {
-    return <div className="p-4">Loading...</div>;
+  if (error) return (
+    <div className="p-6 bg-red-50 border-l-4 border-red-500 text-red-700 rounded">
+      <div className="flex items-center">
+        <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p>Error: {error}</p>
+      </div>
+    </div>
+  );
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="flex items-center">
+          <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span className="text-lg font-medium text-gray-700">Loading exercise...</span>
+        </div>
+      </div>
+    );
   }
 
+  if (!exercise || !Array.isArray(exercise.sets)) {
+    return <div className="p-4 text-red-500">Failed to load exercise data</div>;
+  }
+
+  // Count completed sets
+  const completedSets = exercise.sets.filter(set => set.completed).length;
+
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-xl font-bold mb-4">{exercise.name}</h1>
-      
-      {/* Progress indicator */}
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm text-gray-600">
-            Exercise {currentIndex + 1} of {exercises?.length || 0}
-          </span>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => handleNavigation('prev')}
-              disabled={currentIndex === 0}
-              className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600 transition-colors"
-            >
-              ← Previous
-            </button>
-            <button
-              onClick={() => navigate(`/workout/${day}`)}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-            >
-              Back to Workout
-            </button>
-            <button
-              onClick={() => handleNavigation('next')}
-              disabled={currentIndex === (exercises?.length || 0) - 1}
-              className="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50 hover:bg-blue-600 transition-colors"
-            >
-              Next →
-            </button>
+    <div>
+      <div className="mb-8 bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 text-white">
+          <h1 className="text-xl font-bold">{exercise.name}</h1>
+          <div className="flex items-center mt-1 text-indigo-100 text-sm">
+            <span>{completedSets} of {exercise.sets.length} sets completed</span>
           </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div
-            className="bg-blue-600 h-2.5 rounded-full"
-            style={{ width: `${((currentIndex + 1) / (exercises?.length || 1)) * 100}%` }}
-          />
+        
+        {/* Progress indicator */}
+        <div className="px-6 py-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-gray-600">
+              Exercise {currentIndex + 1} of {exercises?.length || 0}
+            </span>
+            <div className="flex space-x-2">
+              <button
+                onClick={() => handleNavigation('prev')}
+                disabled={currentIndex === 0}
+                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full disabled:opacity-50 hover:bg-gray-200 transition-colors text-sm flex items-center space-x-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Previous</span>
+              </button>
+              <button
+                onClick={() => navigate(`/workout/${day}`)}
+                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors text-sm"
+              >
+                Back to Workout
+              </button>
+              <button
+                onClick={() => handleNavigation('next')}
+                disabled={currentIndex === (exercises?.length || 0) - 1}
+                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full disabled:opacity-50 hover:bg-gray-200 transition-colors text-sm flex items-center space-x-1"
+              >
+                <span>Next</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${((currentIndex + 1) / (exercises?.length || 1)) * 100}%` }}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Exercise Sets */}
-      <div className="space-y-4">
-        {exercise.sets.map((set, index) => (
-          <div key={index} className="flex items-center space-x-4 bg-white p-4 rounded shadow">
-            <span className="w-8">{index + 1}.</span>
-            <input
-              type="number"
-              value={set.weight}
-              className="w-20 p-2 border rounded"
-              step="0.5"
-              onChange={(e) => handleInputChange(index, 'weight', e.target.value)}
-            />
-            <span>Kg</span>
-            <input
-              type="number"
-              value={set.reps}
-              className="w-20 p-2 border rounded"
-              onChange={(e) => handleInputChange(index, 'reps', e.target.value)}
-            />
-            <span>Reps</span>
-            <button
-              onClick={() => handleSetCompletion(index)}
-              className={`w-8 h-8 rounded-full ${
-                set.completed ? 'bg-green-300' : 'bg-gray-300'
-              }`}
-              disabled={!isWorkoutActive}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Add history button */}
-      <button
-        onClick={() => navigate(`/exercise/${id}/history`)}
-        className="mt-8 w-full bg-blue-500 text-white p-4 rounded hover:bg-blue-600"
-      >
-        View History
-      </button>
-
+      {/* Rest Timer - show prominently if active */}
       {showTimer && (
-        <div className="mt-4">
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-md">
+          <h3 className="text-blue-800 font-medium mb-3 flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+            </svg>
+            Rest Timer
+          </h3>
           <RestTimer 
             onComplete={handleTimerComplete}
             startTime={timerStartTime}
@@ -330,6 +342,82 @@ const Exercise = ({ isWorkoutActive }) => {
           />
         </div>
       )}
+
+      {/* Exercise Sets */}
+      <div className="mb-6">
+        <h3 className="text-lg font-medium text-gray-800 mb-4">Sets</h3>
+        <div className="space-y-3">
+          {exercise.sets.map((set, index) => (
+            <div 
+              key={index} 
+              className={`bg-white rounded-lg p-4 shadow transition-all duration-300 ${
+                set.completed ? 'border-l-4 border-green-500' : ''
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex-none w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-800 font-medium">
+                  {index + 1}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={set.weight}
+                    className="w-16 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    step="0.5"
+                    onChange={(e) => handleInputChange(index, 'weight', e.target.value)}
+                  />
+                  <span className="text-gray-600">Kg</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={set.reps}
+                    className="w-16 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    onChange={(e) => handleInputChange(index, 'reps', e.target.value)}
+                  />
+                  <span className="text-gray-600">Reps</span>
+                </div>
+                
+                <div className="ml-auto">
+                  <button
+                    onClick={() => handleSetCompletion(index)}
+                    disabled={!isWorkoutActive}
+                    className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                      !isWorkoutActive 
+                        ? 'bg-gray-100 cursor-not-allowed' 
+                        : set.completed 
+                          ? 'bg-green-100 hover:bg-green-200' 
+                          : 'bg-gray-100 hover:bg-gray-200'
+                    }`}
+                    title={isWorkoutActive ? 'Mark as completed' : 'Start workout to track sets'}
+                  >
+                    {set.completed && (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* History Button */}
+      <div className="grid grid-cols-1 gap-4">
+        <button
+          onClick={() => navigate(`/exercise/${id}/history`)}
+          className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white p-4 rounded-lg hover:from-indigo-600 hover:to-purple-700 shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+          </svg>
+          View Exercise History
+        </button>
+      </div>
     </div>
   );
 };
