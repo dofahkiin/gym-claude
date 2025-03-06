@@ -1,10 +1,11 @@
 // frontend/src/components/WorkoutDay.js
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, Outlet } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 const WorkoutDay = () => {
   const { day } = useParams();
   const [workout, setWorkout] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchWorkout = async () => {
@@ -14,7 +15,7 @@ const WorkoutDay = () => {
           headers: {
             'Authorization': `Bearer ${user.token}`,
           },
-          credentials: 'include' // Add this to include cookies in requests
+          credentials: 'include'
         });
         const data = await response.json();
         setWorkout(data);
@@ -26,6 +27,10 @@ const WorkoutDay = () => {
     fetchWorkout();
   }, [day]);
 
+  const handleExerciseClick = (exerciseId) => {
+    navigate(`/workout/${day}/exercise/${exerciseId}`);
+  };
+
   if (!workout) return <div className="p-4">Loading...</div>;
 
   return (
@@ -33,10 +38,10 @@ const WorkoutDay = () => {
       <h1 className="text-2xl font-bold mb-6">Day {day}</h1>
       <div className="space-y-4">
         {workout.exercises.map((exercise) => (
-          <Link
+          <div
             key={exercise._id}
-            to={`/workout/${day}/exercise/${exercise._id}`}
-            className="block bg-white p-4 rounded shadow hover:shadow-lg transition"
+            onClick={() => handleExerciseClick(exercise._id)}
+            className="block bg-white p-4 rounded shadow hover:shadow-lg transition cursor-pointer"
           >
             <div className="flex justify-between items-center">
               <span>{exercise.name}</span>
@@ -44,12 +49,9 @@ const WorkoutDay = () => {
                 {exercise.sets.length}x{exercise.sets[0].reps} Reps
               </span>
             </div>
-          </Link>
+          </div>
         ))}
       </div>
-      
-      {/* Render nested routes */}
-      <Outlet context={{ workoutDay: day, exercises: workout.exercises }} />
     </div>
   );
 };

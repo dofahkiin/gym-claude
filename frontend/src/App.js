@@ -104,6 +104,7 @@ const App = () => {
           </div>
         </nav>
 
+
         <Routes>
           <Route path="/login" element={<Login setUser={setUser} />} />
           <Route path="/signup" element={<SignUp setUser={setUser} />} />
@@ -125,14 +126,14 @@ const App = () => {
             element={
               user ? <WorkoutDay /> : <Navigate to="/login" />
             }
-          >
-            <Route 
-              path="exercise/:id" 
-              element={
-                <Exercise isWorkoutActive={isWorkoutActive} />
-              } 
-            />
-          </Route>
+          />
+          {/* Change this from a nested route to a separate route */}
+          <Route 
+            path="/workout/:day/exercise/:id" 
+            element={
+              user ? <Exercise isWorkoutActive={isWorkoutActive} /> : <Navigate to="/login" />
+            } 
+          />
           <Route 
             path="/exercise/:id/history" 
             element={
