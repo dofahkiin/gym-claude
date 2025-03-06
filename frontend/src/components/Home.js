@@ -49,11 +49,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
 
   return (
     <div>
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Welcome to GymTracker</h2>
-        <p className="text-gray-600 dark:text-gray-300">Track your progress and crush your fitness goals</p>
-      </div>
+
       
       {/* Workout Status Card */}
       <div className={`mb-8 rounded-lg p-6 shadow-md ${isWorkoutActive 
