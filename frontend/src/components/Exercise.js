@@ -1,4 +1,4 @@
-// Exercise.js component with dark mode support
+// Exercise.js component with dark mode support - Fixed version
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { debounce } from 'lodash';
@@ -45,8 +45,200 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     }
   }, [day]);
 
-  // Rest of your useEffect hooks and functions remain the same
-  // ...
+  // Fetch exercise data
+  useEffect(() => {
+    const fetchExerciseData = async () => {
+      try {
+        setLoading(true);
+        const user = JSON.parse(localStorage.getItem('user'));
+        const response = await fetch(`/api/exercises/${id}`, {
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+          },
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch exercise data');
+        }
+        
+        const data = await response.json();
+        setExercise(data);
+
+        // Check for existing timer
+        const savedTimer = localStorage.getItem(`timer_${data._id}`);
+        if (savedTimer) {
+          const startTime = parseInt(savedTimer);
+          const elapsedSeconds = (Date.now() - startTime) / 1000;
+          
+          // Only set the timer if it hasn't expired
+          if (elapsedSeconds < 90) {
+            setTimerStartTime(startTime);
+          } else {
+            localStorage.removeItem(`timer_${data._id}`);
+          }
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchExerciseData();
+  }, [id]);
+
+  // Update current index when exercise and exercises list are loaded
+  useEffect(() => {
+    if (exercises.length > 0 && exercise) {
+      const index = exercises.findIndex(ex => ex._id === exercise._id);
+      if (index !== -1) {
+        setCurrentIndex(index);
+      }
+    }
+  }, [exercise, exercises]);
+
+  // Handle navigation
+  const handleNavigation = useCallback((direction) => {
+    if (!exercises || !day) return;
+    
+    const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
+    if (newIndex >= 0 && newIndex < exercises.length) {
+      const nextExercise = exercises[newIndex];
+      navigate(`/workout/${day}/exercise/${nextExercise._id}`);
+    }
+  }, [currentIndex, exercises, navigate, day]);
+
+  // Handle timer completion
+  const handleTimerComplete = useCallback(() => {
+    if (!exercise) return;
+    setTimerStartTime(null);
+    localStorage.removeItem(`timer_${exercise._id}`);
+  }, [exercise]);
+
+  // Check timer expiration periodically
+  useEffect(() => {
+    if (!timerStartTime || !exercise) return;
+
+    const checkTimer = () => {
+      const elapsedSeconds = (Date.now() - timerStartTime) / 1000;
+      if (elapsedSeconds >= 90) {
+        handleTimerComplete();
+      }
+    };
+
+    const intervalId = setInterval(checkTimer, 1000);
+    return () => clearInterval(intervalId);
+  }, [timerStartTime, exercise, handleTimerComplete]);
+
+  // Calculate if timer should be shown
+  const showTimer = useMemo(() => {
+    if (!timerStartTime) return false;
+    const elapsedSeconds = (Date.now() - timerStartTime) / 1000;
+    return elapsedSeconds < 90;
+  }, [timerStartTime]);
+
+  // Update exercise data
+  const updateExerciseData = useCallback(async (exerciseId, updatedData) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      
+      if (!exerciseId) {
+        throw new Error('No exercise ID provided');
+      }
+
+      const updateResponse = await fetch(`/api/exercises/${exerciseId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sets: updatedData.sets
+        }),
+        credentials: 'include'
+      });
+      
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json();
+        throw new Error(`Failed to update exercise data: ${errorData.message || updateResponse.statusText}`);
+      }
+
+      const getResponse = await fetch(`/api/exercises/${exerciseId}`, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+        },
+        credentials: 'include'
+      });
+
+      if (!getResponse.ok) {
+        throw new Error('Failed to fetch updated exercise data');
+      }
+
+      const data = await getResponse.json();
+      setExercise(data);
+      return data;
+    } catch (err) {
+      console.error('Update error:', err);
+      setError(err.message);
+      throw err;
+    }
+  }, []);
+
+  // Handle set completion
+  const handleSetCompletion = useCallback(async (setIndex) => {
+    if (!isWorkoutActive || !exercise) return;
+    
+    try {
+      const updatedSets = exercise.sets.map((set, index) => {
+        if (index === setIndex) {
+          const newCompleted = !set.completed;
+          if (newCompleted) {
+            const startTime = Date.now();
+            setTimerStartTime(startTime);
+            localStorage.setItem(`timer_${exercise._id}`, startTime.toString());
+          }
+          return { ...set, completed: newCompleted };
+        }
+        return set;
+      });
+
+      const updatedExercise = await updateExerciseData(exercise._id, { sets: updatedSets });
+      setExercise(updatedExercise);
+    } catch (err) {
+      console.error('Set completion error:', err);
+      setError(err.message);
+    }
+  }, [exercise, isWorkoutActive, updateExerciseData]);
+
+  // Add debounced update function
+  const debouncedUpdate = useCallback(
+    debounce(async (exerciseId, updatedSets) => {
+      try {
+        await updateExerciseData(exerciseId, { sets: updatedSets });
+      } catch (err) {
+        console.error('Failed to save exercise data:', err);
+      }
+    }, 500),
+    [updateExerciseData]
+  );
+
+  // Handle input changes
+  const handleInputChange = useCallback(async (index, field, value) => {
+    if (!exercise) return;
+
+    const updatedSets = exercise.sets.map((set, i) => 
+      i === index 
+        ? { 
+            ...set, 
+            [field]: field === 'weight' ? parseFloat(value) : parseInt(value)
+          } 
+        : set
+    );
+
+    setExercise(prev => ({ ...prev, sets: updatedSets }));
+    debouncedUpdate(exercise._id, updatedSets);
+  }, [exercise, debouncedUpdate]);
 
   if (error) return (
     <div className="p-6 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 rounded">
