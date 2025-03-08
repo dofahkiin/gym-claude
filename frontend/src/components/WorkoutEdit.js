@@ -22,7 +22,7 @@ const WorkoutEdit = () => {
       try {
         setLoading(true);
         const user = JSON.parse(localStorage.getItem('user'));
-        const response = await fetch(`/api/workouts/custom/${id}`, {
+        const response = await fetch(`/api/custom-workouts/${id}`, {
           headers: {
             'Authorization': `Bearer ${user.token}`,
           },
@@ -57,7 +57,7 @@ const WorkoutEdit = () => {
     
     try {
       const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch(`/api/workouts/custom/${id}`, {
+      const response = await fetch(`/api/custom-workouts/${id}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${user.token}`,
@@ -137,7 +137,7 @@ const WorkoutEdit = () => {
   const saveExercisesToWorkout = async (updatedExercises) => {
     try {
       const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch(`/api/workouts/custom/${id}/exercises`, {
+      const response = await fetch(`/api/custom-workouts/${id}/exercises`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${user.token}`,
