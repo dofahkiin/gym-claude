@@ -276,8 +276,19 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     <div>
       <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-800 dark:to-purple-800 px-6 py-4 text-white">
-          <h1 className="text-xl font-bold">{exercise.name}</h1>
-          <div className="flex items-center mt-1 text-indigo-100 text-sm">
+          <div className="flex items-center mb-1">
+            <button
+              onClick={() => navigate(`/workout/${day}`)}
+              className="mr-2 hover:bg-white/10 rounded-full p-1 transition-colors"
+              aria-label="Back to workout"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <h1 className="text-xl font-bold">{exercise.name}</h1>
+          </div>
+          <div className="flex items-center text-indigo-100 text-sm">
             <span>{completedSets} of {exercise.sets.length} sets completed</span>
           </div>
         </div>
@@ -298,12 +309,6 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
                   <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
                 <span>Previous</span>
-              </button>
-              <button
-                onClick={() => navigate(`/workout/${day}`)}
-                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm"
-              >
-                Back to Workout
               </button>
               <button
                 onClick={() => handleNavigation('next')}
