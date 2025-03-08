@@ -1,4 +1,4 @@
-// App.js
+// App.js (Complete version with all routes)
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import Login from './components/Login';
@@ -7,8 +7,14 @@ import Home from './components/Home';
 import WorkoutDay from './components/WorkoutDay';
 import Exercise from './components/Exercise';
 import ThemeToggle from './components/ThemeToggle';
+import ExerciseHistory from './components/ExerciseHistory';
 import { Link } from 'react-router-dom';
-import ExerciseHistory from './components/ExerciseHistory'; 
+
+// Import new components
+import WorkoutManagement from './components/WorkoutManagement';
+import WorkoutEdit from './components/WorkoutEdit';
+import ExerciseDetails from './components/ExerciseDetails';
+import ExerciseLibrary from './components/ExerciseLibrary';
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -135,8 +141,11 @@ const App = () => {
 
         <main className="main-content">
           <Routes>
+            {/* Authentication Routes */}
             <Route path="/login" element={<Login setUser={setUser} darkMode={darkMode} />} />
             <Route path="/signup" element={<SignUp setUser={setUser} darkMode={darkMode} />} />
+            
+            {/* Home Route */}
             <Route 
               path="/" 
               element={
@@ -151,6 +160,8 @@ const App = () => {
                 )
               } 
             />
+            
+            {/* Default Workout Routes */}
             <Route 
               path="/workout/:day" 
               element={
@@ -169,6 +180,37 @@ const App = () => {
                 user ? <ExerciseHistory darkMode={darkMode} /> : <Navigate to="/login" />
               }
             />
+            
+            {/* Custom Workout Management Routes */}
+            <Route 
+              path="/workouts/manage" 
+              element={
+                user ? <WorkoutManagement darkMode={darkMode} /> : <Navigate to="/login" />
+              }
+            />
+            <Route 
+              path="/workout/:id/edit" 
+              element={
+                user ? <WorkoutEdit darkMode={darkMode} /> : <Navigate to="/login" />
+              }
+            />
+            <Route 
+              path="/exercise/details/:id" 
+              element={
+                user ? <ExerciseDetails isWorkoutActive={isWorkoutActive} darkMode={darkMode} /> : <Navigate to="/login" />
+              }
+            />
+            
+            {/* Exercise Library Route */}
+            <Route 
+              path="/exercises/library" 
+              element={
+                user ? <ExerciseLibrary darkMode={darkMode} /> : <Navigate to="/login" />
+              }
+            />
+            
+            {/* Fallback Route */}
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
       </div>
