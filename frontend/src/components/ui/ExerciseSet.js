@@ -26,33 +26,36 @@ const ExerciseSet = ({
       className={`exercise-set ${set.completed ? 'exercise-set-completed' : ''}`}
       {...rest}
     >
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="set-number">
+      <div className="flex items-center justify-between w-full">
+        <div className="set-number flex-shrink-0">
           {index + 1}
         </div>
         
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            value={set.weight}
-            className="form-input w-16"
-            step="0.5"
-            onChange={(e) => onWeightChange(index, e.target.value)}
-          />
-          <span className="text-gray-600 dark:text-gray-300">Kg</span>
+        {/* Evenly distributed inputs */}
+        <div className="flex items-center justify-center flex-grow mx-6">
+          <div className="flex items-center gap-2 w-1/2 justify-center">
+            <input
+              type="number"
+              value={set.weight}
+              className="form-input w-16"
+              step="0.5"
+              onChange={(e) => onWeightChange(index, e.target.value)}
+            />
+            <span className="text-gray-600 dark:text-gray-300">Kg</span>
+          </div>
+          
+          <div className="flex items-center gap-2 w-1/2 justify-center">
+            <input
+              type="number"
+              value={set.reps}
+              className="form-input w-16"
+              onChange={(e) => onRepsChange(index, e.target.value)}
+            />
+            <span className="text-gray-600 dark:text-gray-300">Reps</span>
+          </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            value={set.reps}
-            className="form-input w-16"
-            onChange={(e) => onRepsChange(index, e.target.value)}
-          />
-          <span className="text-gray-600 dark:text-gray-300">Reps</span>
-        </div>
-        
-        <div className="ml-auto">
+        <div className="flex-shrink-0">
           <button
             onClick={() => onCompletionToggle(index)}
             disabled={!isWorkoutActive}
