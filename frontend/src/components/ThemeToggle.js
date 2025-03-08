@@ -1,5 +1,6 @@
-// src/components/ThemeToggle.js
+// Updated ThemeToggle.js with design classes
 import React, { useEffect } from 'react';
+import { Button } from './ui';
 
 const ThemeToggle = ({ darkMode, setDarkMode }) => {
   // Apply the dark mode class to the html element when dark mode changes
@@ -16,7 +17,7 @@ const ThemeToggle = ({ darkMode, setDarkMode }) => {
   return (
     <button
       onClick={() => setDarkMode(!darkMode)}
-      className="relative inline-flex items-center p-1 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+      className="relative p-1 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
       aria-pressed={darkMode}
       aria-label="Toggle dark mode"
     >

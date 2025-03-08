@@ -1,4 +1,4 @@
-// frontend/src/components/RestTimer.js
+// Updated RestTimer.js with CSS classes
 import React, { useState, useEffect } from 'react';
 
 const RestTimer = ({ duration = 90, onComplete, startTime, darkMode }) => {
@@ -45,7 +45,7 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode }) => {
     <div className="relative w-full">
       <div className="timer-bar">
         <div 
-          className={`${getTimerColorClass()}`}
+          className={getTimerColorClass()}
           style={{ width: `${progress}%` }}
         />
         <div className="absolute top-0 left-0 right-0 h-10 flex items-center justify-center text-base font-bold text-white drop-shadow-md">
