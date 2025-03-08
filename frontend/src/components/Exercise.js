@@ -276,10 +276,10 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     <div>
       <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-800 dark:to-purple-800 px-6 py-4 text-white">
-          <div className="flex items-center mb-1">
+          <div className="flex items-center mb-1 -ml-2">
             <button
               onClick={() => navigate(`/workout/${day}`)}
-              className="mr-2 hover:bg-white/10 rounded-full p-1 transition-colors"
+              className="hover:bg-white/10 rounded-full p-1 transition-colors flex-shrink-0"
               aria-label="Back to workout"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
