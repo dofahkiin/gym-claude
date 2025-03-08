@@ -1,8 +1,8 @@
-// Exercise.js updated with component library
+// Exercise.js updated with component library and loading state removed
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { debounce } from 'lodash';
-import { Card, Button, Alert, Loading, ExerciseSet } from './ui';
+import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
@@ -254,10 +254,10 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
 
   if (error) return <Alert type="error">Error: {error}</Alert>;
   
-  if (loading) return <Loading text="Loading exercise..." />;
-
+  // IMPORTANT CHANGE: Instead of showing a loading state, maintain the previous exercise
+  // data while loading the new one
   if (!exercise || !Array.isArray(exercise.sets)) {
-    return <Alert type="error">Failed to load exercise data</Alert>;
+    return null; // Return nothing while loading instead of a loading indicator
   }
 
   // Count completed sets
