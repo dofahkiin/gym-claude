@@ -1,4 +1,4 @@
-// Exercise.js component with dark mode support - Fixed version
+// Exercise.js component updated to use CSS classes
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { debounce } from 'lodash';
@@ -241,7 +241,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   }, [exercise, debouncedUpdate]);
 
   if (error) return (
-    <div className="p-6 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 text-red-700 dark:text-red-300 rounded">
+    <div className="alert alert-error">
       <div className="flex items-center">
         <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -253,9 +253,9 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="loading-container">
         <div className="flex items-center">
-          <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-indigo-600 dark:text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg className="loading-spinner -ml-1 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
@@ -274,8 +274,8 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
 
   return (
     <div>
-      <div className="mb-8 bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-800 dark:to-purple-800 px-6 py-4 text-white">
+      <div className="mb-8 card">
+        <div className="card-gradient-header">
           <div className="flex items-center mb-1 -ml-2">
             <button
               onClick={() => navigate(`/workout/${day}`)}
@@ -303,7 +303,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               <button
                 onClick={() => handleNavigation('prev')}
                 disabled={currentIndex === 0}
-                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full disabled:opacity-50 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm flex items-center space-x-1"
+                className="btn btn-secondary btn-rounded disabled:opacity-50 text-sm flex items-center space-x-1"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -313,7 +313,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               <button
                 onClick={() => handleNavigation('next')}
                 disabled={currentIndex === (exercises?.length || 0) - 1}
-                className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full disabled:opacity-50 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm flex items-center space-x-1"
+                className="btn btn-secondary btn-rounded disabled:opacity-50 text-sm flex items-center space-x-1"
               >
                 <span>Next</span>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -322,9 +322,9 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               </button>
             </div>
           </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+          <div className="progress-bar">
             <div
-              className="bg-indigo-600 dark:bg-indigo-500 h-2 rounded-full transition-all duration-300"
+              className="progress-value"
               style={{ width: `${((currentIndex + 1) / (exercises?.length || 1)) * 100}%` }}
             />
           </div>
@@ -333,7 +333,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
 
       {/* Rest Timer - show prominently if active */}
       {showTimer && (
-        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 shadow-md">
+        <div className="mb-6 alert-info">
           <h3 className="text-blue-800 dark:text-blue-300 font-medium mb-3 flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
@@ -356,12 +356,10 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
           {exercise.sets.map((set, index) => (
             <div 
               key={index} 
-              className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow transition-all duration-300 ${
-                set.completed ? 'border-l-4 border-green-500' : ''
-              }`}
+              className={`exercise-set ${set.completed ? 'exercise-set-completed' : ''}`}
             >
               <div className="flex flex-wrap items-center gap-4">
-                <div className="flex-none w-8 h-8 bg-indigo-100 dark:bg-indigo-900/60 rounded-full flex items-center justify-center text-indigo-800 dark:text-indigo-300 font-medium">
+                <div className="set-number">
                   {index + 1}
                 </div>
                 
@@ -369,7 +367,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
                   <input
                     type="number"
                     value={set.weight}
-                    className="w-16 p-2 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    className="form-input w-16"
                     step="0.5"
                     onChange={(e) => handleInputChange(index, 'weight', e.target.value)}
                   />
@@ -380,7 +378,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
                   <input
                     type="number"
                     value={set.reps}
-                    className="w-16 p-2 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    className="form-input w-16"
                     onChange={(e) => handleInputChange(index, 'reps', e.target.value)}
                   />
                   <span className="text-gray-600 dark:text-gray-300">Reps</span>
@@ -416,7 +414,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       <div className="grid grid-cols-1 gap-4">
         <button
           onClick={() => navigate(`/exercise/${id}/history`)}
-          className="bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 text-white p-4 rounded-lg hover:from-indigo-600 hover:to-purple-700 dark:hover:from-indigo-700 dark:hover:to-purple-800 shadow-md hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+          className="btn btn-primary rounded-lg p-4 flex items-center justify-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />

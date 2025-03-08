@@ -1,4 +1,4 @@
-// frontend/src/components/Home.js with complete dark mode
+// frontend/src/components/Home.js with design moved to CSS
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -49,12 +49,8 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
 
   return (
     <div>
-
-      
       {/* Workout Status Card */}
-      <div className={`mb-8 rounded-lg p-6 shadow-md ${isWorkoutActive 
-        ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-l-4 border-emerald-500' 
-        : 'bg-white dark:bg-gray-800'}`}>
+      <div className={isWorkoutActive ? 'workout-active-card' : 'workout-inactive-card'}>
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div>
             <h3 className="font-bold text-gray-800 dark:text-gray-100 text-lg mb-1">
@@ -68,11 +64,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
           </div>
           <button
             onClick={handleWorkoutToggle}
-            className={`px-6 py-3 rounded-full font-medium shadow-md transition-all duration-300 transform hover:scale-105 ${
-              isWorkoutActive 
-                ? 'bg-gradient-to-r from-red-500 to-red-600 dark:from-red-600 dark:to-red-700 text-white' 
-                : 'bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-600 dark:to-purple-700 text-white'
-            }`}
+            className={`btn ${isWorkoutActive ? 'btn-danger' : 'btn-primary'} btn-rounded px-6 py-3 shadow-md transition-all duration-300 transform hover:scale-105`}
           >
             {isWorkoutActive ? 'END WORKOUT' : 'START WORKOUT'}
           </button>
@@ -86,12 +78,11 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
           <Link
             key={workout.id}
             to={`/workout/${workout.id}`}
-            className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-md hover:shadow-lg dark:shadow-gray-900/30 transition-shadow duration-300"
+            className="workout-card"
           >
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="font-bold text-gray-800 dark:text-gray-100">{workout.name}</h3>
-                {/* We could add a status indicator here if workout had a status property */}
               </div>
               
               <div className="flex items-center justify-between mt-4">
@@ -106,9 +97,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
       </div>
 
       {notification && (
-        <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg ${
-          notification.isError ? 'bg-red-500 dark:bg-red-600' : 'bg-green-500 dark:bg-green-600'
-        } text-white transition-opacity duration-300 ease-in-out max-w-md`}>
+        <div className={`notification ${notification.isError ? 'notification-error' : 'notification-success'}`}>
           <div className="flex items-center">
             {notification.isError ? (
               <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

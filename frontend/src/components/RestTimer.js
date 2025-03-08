@@ -34,18 +34,18 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode }) => {
   };
 
   // Get color based on time remaining
-  const getColorClass = () => {
+  const getTimerColorClass = () => {
     const percentRemaining = (timeLeft / duration) * 100;
-    if (percentRemaining > 66) return 'bg-green-500 dark:bg-green-600';
-    if (percentRemaining > 33) return 'bg-yellow-500 dark:bg-yellow-600';
-    return 'bg-red-500 dark:bg-red-600';
+    if (percentRemaining > 66) return 'timer-green';
+    if (percentRemaining > 33) return 'timer-yellow';
+    return 'timer-red';
   };
 
   return (
     <div className="relative w-full">
-      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-10 shadow-inner overflow-hidden">
+      <div className="timer-bar">
         <div 
-          className={`${getColorClass()} h-10 rounded-full transition-all duration-100`}
+          className={`${getTimerColorClass()}`}
           style={{ width: `${progress}%` }}
         />
         <div className="absolute top-0 left-0 right-0 h-10 flex items-center justify-center text-base font-bold text-white drop-shadow-md">

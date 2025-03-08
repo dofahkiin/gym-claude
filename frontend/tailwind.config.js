@@ -33,11 +33,24 @@ module.exports = {
           800: '#6b21a8',
           900: '#581c87',
           950: '#3b0764',
+        },
+        gray: {
+          750: '#374151', // Additional shade between 700 and 800
         }
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      animation: {
+        'spin-slow': 'spin 3s linear infinite',
+      },
+      gradientColorStops: theme => ({
+        ...theme('colors'),
+        'gradient-start': '#4f46e5',
+        'gradient-end': '#9333ea',
+        'gradient-start-dark': '#3730a3',
+        'gradient-end-dark': '#6b21a8',
+      }),
     },
   },
   plugins: [

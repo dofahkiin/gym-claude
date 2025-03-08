@@ -2,3 +2,277 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Base styles and CSS variables */
+:root {
+  --color-primary: theme('colors.indigo.600');
+  --color-primary-dark: theme('colors.indigo.900');
+  --color-secondary: theme('colors.purple.600');
+  --color-secondary-dark: theme('colors.purple.900');
+  --color-success: theme('colors.green.500');
+  --color-error: theme('colors.red.500');
+  --color-warning: theme('colors.yellow.500');
+  --color-info: theme('colors.blue.500');
+}
+
+@layer base {
+  body {
+    @apply font-sans text-gray-900 transition-colors duration-200;
+  }
+
+  .dark body {
+    @apply text-gray-100;
+  }
+}
+
+/* Common component styles */
+@layer components {
+  /* Layout components */
+  .app-container {
+    @apply min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 transition-colors duration-200;
+  }
+  
+  .dark .app-container {
+    @apply from-gray-900 to-gray-800;
+  }
+
+  .main-header {
+    @apply bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg;
+  }
+  
+  .dark .main-header {
+    @apply from-indigo-900 to-purple-900 shadow-gray-900/30;
+  }
+
+  .main-content {
+    @apply container mx-auto px-4 py-8;
+  }
+
+  /* Card components */
+  .card {
+    @apply bg-white rounded-lg shadow-md overflow-hidden;
+  }
+  
+  .dark .card {
+    @apply bg-gray-800;
+  }
+
+  .card-gradient-header {
+    @apply bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 text-white;
+  }
+  
+  .dark .card-gradient-header {
+    @apply from-indigo-800 to-purple-800;
+  }
+
+  /* Button components */
+  .btn {
+    @apply px-4 py-2 rounded-md transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 shadow-md;
+  }
+  
+  .dark .btn-primary {
+    @apply from-indigo-600 to-purple-700 hover:from-indigo-700 hover:to-purple-800;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
+  }
+  
+  .dark .btn-secondary {
+    @apply bg-gray-700 text-gray-200 hover:bg-gray-600;
+  }
+
+  .btn-rounded {
+    @apply rounded-full;
+  }
+
+  .btn-danger {
+    @apply bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700;
+  }
+  
+  .dark .btn-danger {
+    @apply from-red-600 to-red-700 hover:from-red-700 hover:to-red-800;
+  }
+
+  /* Form components */
+  .form-input {
+    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2.5 bg-white text-gray-900;
+  }
+  
+  .dark .form-input {
+    @apply border-gray-600 bg-gray-700 text-gray-100;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+  
+  .dark .form-label {
+    @apply text-gray-300;
+  }
+
+  /* Alert components */
+  .alert {
+    @apply p-4 rounded-md mb-4;
+  }
+
+  .alert-error {
+    @apply bg-red-50 text-red-700 border-l-4 border-red-500;
+  }
+  
+  .dark .alert-error {
+    @apply bg-red-900/20 text-red-300;
+  }
+
+  .alert-success {
+    @apply bg-green-50 text-green-700 border-l-4 border-green-500;
+  }
+  
+  .dark .alert-success {
+    @apply bg-green-900/20 text-green-300;
+  }
+
+  .alert-info {
+    @apply bg-blue-50 text-blue-700 border-l-4 border-blue-500;
+  }
+  
+  .dark .alert-info {
+    @apply bg-blue-900/20 text-blue-300;
+  }
+
+  /* Loading components */
+  .loading-spinner {
+    @apply animate-spin h-8 w-8 text-indigo-600;
+  }
+  
+  .dark .loading-spinner {
+    @apply text-indigo-400;
+  }
+
+  .loading-container {
+    @apply flex justify-center items-center h-64;
+  }
+
+  /* Progress components */
+  .progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-2;
+  }
+  
+  .dark .progress-bar {
+    @apply bg-gray-700;
+  }
+
+  .progress-value {
+    @apply bg-indigo-600 h-2 rounded-full transition-all duration-300;
+  }
+  
+  .dark .progress-value {
+    @apply bg-indigo-500;
+  }
+
+  /* Timer components */
+  .timer-bar {
+    @apply w-full bg-gray-200 rounded-full h-10 shadow-inner overflow-hidden;
+  }
+  
+  .dark .timer-bar {
+    @apply bg-gray-700;
+  }
+
+  .timer-green {
+    @apply bg-green-500 h-10 rounded-full transition-all duration-100;
+  }
+  
+  .dark .timer-green {
+    @apply bg-green-600;
+  }
+
+  .timer-yellow {
+    @apply bg-yellow-500 h-10 rounded-full transition-all duration-100;
+  }
+  
+  .dark .timer-yellow {
+    @apply bg-yellow-600;
+  }
+
+  .timer-red {
+    @apply bg-red-500 h-10 rounded-full transition-all duration-100;
+  }
+  
+  .dark .timer-red {
+    @apply bg-red-600;
+  }
+
+  /* Exercise set card */
+  .exercise-set {
+    @apply bg-white rounded-lg p-4 shadow transition-all duration-300;
+  }
+  
+  .dark .exercise-set {
+    @apply bg-gray-800;
+  }
+
+  .exercise-set-completed {
+    @apply border-l-4 border-green-500;
+  }
+
+  .set-number {
+    @apply flex-none w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-800 font-medium;
+  }
+  
+  .dark .set-number {
+    @apply bg-indigo-900/60 text-indigo-300;
+  }
+
+  /* Notification toast */
+  .notification {
+    @apply fixed top-4 right-4 p-4 rounded-lg shadow-lg text-white transition-opacity duration-300 ease-in-out max-w-md;
+  }
+
+  .notification-success {
+    @apply bg-green-500;
+  }
+  
+  .dark .notification-success {
+    @apply bg-green-600;
+  }
+
+  .notification-error {
+    @apply bg-red-500;
+  }
+  
+  .dark .notification-error {
+    @apply bg-red-600;
+  }
+
+  /* Workout card */
+  .workout-card {
+    @apply bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300;
+  }
+  
+  .dark .workout-card {
+    @apply bg-gray-800 shadow-gray-900/30;
+  }
+
+  /* Workout active card */
+  .workout-active-card {
+    @apply rounded-lg p-6 shadow-md bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-emerald-500;
+  }
+  
+  .dark .workout-active-card {
+    @apply from-green-900/20 to-emerald-900/20;
+  }
+
+  /* Workout inactive card */
+  .workout-inactive-card {
+    @apply rounded-lg p-6 shadow-md bg-white;
+  }
+  
+  .dark .workout-inactive-card {
+    @apply bg-gray-800;
+  }
+}
