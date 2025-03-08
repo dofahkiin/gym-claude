@@ -1,11 +1,12 @@
-// Updated WorkoutDay.js with component library
+// Updated WorkoutDay.js with component library and loading state removed
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Loading, Alert } from './ui';
+import { Card, Button, Alert } from './ui';
 
 const WorkoutDay = ({ darkMode }) => {
   const { day } = useParams();
   const [workout, setWorkout] = useState(null);
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -29,6 +30,7 @@ const WorkoutDay = ({ darkMode }) => {
         setWorkout(data);
       } catch (error) {
         console.error('Error fetching workout:', error);
+        setError(error.message);
       } finally {
         setLoading(false);
       }
@@ -45,12 +47,15 @@ const WorkoutDay = ({ darkMode }) => {
     navigate('/');
   };
 
-  if (loading) {
-    return <Loading text="Loading workout..." />;
+  // Show error only if we have an error and we're not loading
+  if (error && !loading) {
+    return <Alert type="error">Could not load workout data: {error}</Alert>;
   }
-
-  if (!workout) {
-    return <Alert type="error">Could not load workout data</Alert>;
+  
+  // IMPORTANT CHANGE: Instead of showing loading state, return null
+  // This will maintain the previous screen until data is loaded
+  if (!workout || loading) {
+    return null;
   }
 
   return (
