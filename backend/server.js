@@ -572,6 +572,73 @@ app.post('/api/workouts/complete', auth, async (req, res) => {
   }
 });
 
+
+// Create a new workout day
+app.post('/api/workouts/days', auth, async (req, res) => {
+  try {
+    const { day } = req.body;
+    
+    if (!day || !Number.isInteger(day) || day <= 0) {
+      return res.status(400).json({ error: 'Valid day number is required' });
+    }
+    
+    // Check if day already exists
+    const existingDay = req.user.workouts.find(w => w.day === day);
+    if (existingDay) {
+      return res.status(400).json({ error: `Day ${day} already exists` });
+    }
+    
+    // Create a new workout day with default exercises
+    const newWorkout = {
+      day,
+      exercises: [
+        {
+          name: "New Exercise",
+          sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
+          history: []
+        }
+      ]
+    };
+    
+    // Add the new workout to the user's workouts
+    req.user.workouts.push(newWorkout);
+    
+    // Save the user
+    await req.user.save();
+    
+    res.status(201).json({ 
+      message: `Day ${day} created successfully`,
+      workout: newWorkout
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete a workout day
+app.delete('/api/workouts/days/:day', auth, async (req, res) => {
+  try {
+    const dayToRemove = parseInt(req.params.day);
+    
+    // Find the workout for the specified day
+    const workoutIndex = req.user.workouts.findIndex(w => w.day === dayToRemove);
+    
+    if (workoutIndex === -1) {
+      return res.status(404).json({ error: 'Workout day not found' });
+    }
+    
+    // Remove the workout day
+    req.user.workouts.splice(workoutIndex, 1);
+    
+    // Save the user
+    await req.user.save();
+    
+    res.json({ message: `Day ${dayToRemove} removed successfully` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
