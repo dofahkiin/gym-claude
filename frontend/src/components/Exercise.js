@@ -577,26 +577,28 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       </div>
       
       {/* Rest Timer Settings */}
-      <div className="mb-6">
-        <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">Rest Timer</h3>
-        <Card className="p-4">
-          <RestTimer 
-            duration={restTime}
-            darkMode={darkMode}
-            onDurationChange={handleRestTimeChange}
-            editMode={true}
-          />
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
-            Customize your rest time between sets. Recommended rest times vary by program:
-            <br/>
-            • Strength: 3-5 minutes for compound exercises, 1-2 minutes for isolation
-            <br/>
-            • Hypertrophy: 1-2 minutes
-            <br/>
-            • Endurance: 30-60 seconds
-          </p>
-        </Card>
-      </div>
+      {editMode && (
+        <div className="mb-6">
+          <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">Rest Timer</h3>
+          <Card className="p-4">
+            <RestTimer 
+              duration={restTime}
+              darkMode={darkMode}
+              onDurationChange={handleRestTimeChange}
+              editMode={true}
+            />
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+              Customize your rest time between sets. Recommended rest times vary by program:
+              <br/>
+              • Strength: 3-5 minutes for compound exercises, 1-2 minutes for isolation
+              <br/>
+              • Hypertrophy: 1-2 minutes
+              <br/>
+              • Endurance: 30-60 seconds
+            </p>
+          </Card>
+        </div>
+      )}
 
       {/* History Button */}
       <div className="grid grid-cols-1 gap-4">
