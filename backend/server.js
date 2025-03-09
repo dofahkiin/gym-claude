@@ -25,6 +25,7 @@ mongoose.connect(process.env.MONGODB_URI);
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  activeProgram: { type: String, default: null }, // Store the active program ID
   workouts: [{
     day: Number,
     exercises: [{
@@ -144,6 +145,11 @@ const cookieOptions = {
   secure: process.env.NODE_ENV === 'production', // Set to true in production
   sameSite: 'Lax',
   maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+};
+
+// Add helper function to convert exercise name to ID
+const normalizeExerciseName = (name) => {
+  return name.toLowerCase().trim().replace(/\s+/g, '_');
 };
 
 // Auth routes
@@ -628,6 +634,89 @@ app.delete('/api/workouts/days/:day', auth, async (req, res) => {
     await req.user.save();
     
     res.json({ message: `Day ${dayToRemove} removed successfully` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Route to clear all workout days and create new ones from a program template
+app.post('/api/workouts/apply-program', auth, async (req, res) => {
+  try {
+    const { program, programId } = req.body;
+    
+    if (!program || !program.workouts || !Array.isArray(program.workouts)) {
+      return res.status(400).json({ error: 'Invalid program data' });
+    }
+    
+    // First, collect all exercise history from the user's current workouts
+    const exerciseHistory = {};
+    
+    // Collect all existing exercise histories indexed by exercise name
+    for (const workout of req.user.workouts) {
+      for (const exercise of workout.exercises) {
+        if (exercise.history && exercise.history.length > 0) {
+          const normalizedName = normalizeExerciseName(exercise.name);
+          exerciseHistory[normalizedName] = exercise.history;
+        }
+      }
+    }
+    
+    // Clear all existing workouts
+    req.user.workouts = [];
+    
+    // Create new workouts from the program
+    for (const workout of program.workouts) {
+      const newWorkout = {
+        day: workout.day,
+        exercises: []
+      };
+      
+      // Add exercises to the workout
+      for (const exerciseData of workout.exercises) {
+        const newExercise = {
+          name: exerciseData.name,
+          sets: Array(exerciseData.sets).fill({
+            weight: 0,
+            reps: exerciseData.reps,
+            completed: false
+          }),
+          history: [] // Initialize with empty history
+        };
+        
+        // Restore history if this exercise existed before
+        const normalizedName = normalizeExerciseName(exerciseData.name);
+        if (exerciseHistory[normalizedName]) {
+          newExercise.history = exerciseHistory[normalizedName];
+        }
+        
+        newWorkout.exercises.push(newExercise);
+      }
+      
+      req.user.workouts.push(newWorkout);
+    }
+    
+    // Save the active program ID
+    req.user.activeProgram = programId;
+    
+    // Save the updated user
+    await req.user.save();
+    
+    res.json({ 
+      message: 'Program applied successfully',
+      workouts: req.user.workouts,
+      activeProgram: programId
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint to get the user's active program
+app.get('/api/user/active-program', auth, async (req, res) => {
+  try {
+    res.json({
+      activeProgram: req.user.activeProgram || null
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
