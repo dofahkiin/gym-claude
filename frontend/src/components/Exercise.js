@@ -13,6 +13,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(null);
@@ -454,16 +455,31 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200">Sets</h3>
           <Button
-            onClick={handleAddSet}
+            onClick={() => setEditMode(!editMode)}
             variant="secondary"
             size="sm"
-            className="flex items-center space-x-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300"
+            className={`flex items-center space-x-1 ${
+              editMode 
+                ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300' 
+                : 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300'
+            }`}
             disabled={actionLoading}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            <span>Add Set</span>
+            {editMode ? (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                <span>Done</span>
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+                <span>Edit Sets</span>
+              </>
+            )}
           </Button>
         </div>
         <div className="space-y-3">
@@ -478,9 +494,27 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               onRemove={() => handleRemoveSet(index)}
               canRemove={exercise.sets.length > 1}
               isWorkoutActive={isWorkoutActive}
+              editMode={editMode}
             />
           ))}
         </div>
+        
+        {/* Add Set button - only visible in edit mode */}
+        {editMode && (
+          <div className="mt-4">
+            <Button
+              onClick={handleAddSet}
+              variant="secondary"
+              className="w-full py-2 flex items-center justify-center space-x-2 border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60"
+              disabled={actionLoading}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              <span>Add Set</span>
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* History Button */}
