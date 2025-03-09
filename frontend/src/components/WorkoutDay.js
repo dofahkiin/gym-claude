@@ -236,7 +236,7 @@ const WorkoutDay = ({ darkMode }) => {
         
         <Button
           onClick={toggleEditMode}
-          variant={editMode ? "primary" : "secondary"}
+          variant="secondary"
           rounded
           className={editMode 
             ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 flex items-center space-x-2" 
