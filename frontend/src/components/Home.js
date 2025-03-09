@@ -1,4 +1,4 @@
-// frontend/src/components/Home.js with Program Selector
+// frontend/src/components/Home.js with Program-specific workout titles
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Notification } from './ui';
 import { Link } from 'react-router-dom';
@@ -13,6 +13,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showProgramSelector, setShowProgramSelector] = useState(false);
   const [activeProgram, setActiveProgram] = useState(null);
+  const [programWorkoutNames, setProgramWorkoutNames] = useState({});
 
   // Fetch workouts and active program on component mount
   useEffect(() => {
@@ -34,6 +35,18 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
       if (response.ok) {
         const data = await response.json();
         setActiveProgram(data.activeProgram);
+        
+        // If we have an active program, create a mapping of day numbers to workout names
+        if (data.activeProgram && workoutPrograms[data.activeProgram]) {
+          const program = workoutPrograms[data.activeProgram];
+          const workoutNameMap = {};
+          
+          program.workouts.forEach(workout => {
+            workoutNameMap[workout.day] = workout.name;
+          });
+          
+          setProgramWorkoutNames(workoutNameMap);
+        }
       }
     } catch (error) {
       console.error('Error fetching active program:', error);
@@ -153,6 +166,13 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
       // Update active program
       setActiveProgram(programId);
       
+      // Update workout names mapping
+      const workoutNameMap = {};
+      program.workouts.forEach(workout => {
+        workoutNameMap[workout.day] = workout.name;
+      });
+      setProgramWorkoutNames(workoutNameMap);
+      
       showNotification(`Successfully switched to ${program.name} program`);
       setShowProgramSelector(false);
     } catch (error) {
@@ -237,6 +257,16 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
     }
   };
 
+  // Get workout name from program or use default
+  const getWorkoutName = (day) => {
+    // If we have a program-specific name for this day, use it
+    if (programWorkoutNames[day]) {
+      return programWorkoutNames[day];
+    }
+    // Otherwise, return a generic name
+    return "Workout";
+  };
+
   // Render workout card
   const renderWorkoutCard = (workout) => (
     <div
@@ -264,7 +294,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
         className="block p-6"
       >
         <div className="flex justify-between items-start mb-4">
-          <h3 className="font-bold text-gray-800 dark:text-gray-100">Day {workout.day}: Workout</h3>
+          <h3 className="font-bold text-gray-800 dark:text-gray-100">Day {workout.day}: {getWorkoutName(workout.day)}</h3>
         </div>
         
         {workout.exercises && (
