@@ -234,45 +234,30 @@ const WorkoutDay = ({ darkMode }) => {
           <p className="text-gray-600 dark:text-gray-300">Complete all exercises in this workout</p>
         </div>
         
-        {editMode ? (
-          <Button
-            onClick={toggleEditMode}
-            variant="primary"
-            rounded
-            className="bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 flex items-center space-x-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-            <span>Done</span>
-          </Button>
-        ) : (
-          <div className="flex space-x-3">
-            <Button
-              onClick={toggleEditMode}
-              variant="secondary"
-              rounded
-              className="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 flex items-center space-x-2"
-            >
+        <Button
+          onClick={toggleEditMode}
+          variant={editMode ? "primary" : "secondary"}
+          rounded
+          className={editMode 
+            ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 flex items-center space-x-2" 
+            : "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 flex items-center space-x-2"}
+        >
+          {editMode ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              <span>Done</span>
+            </>
+          ) : (
+            <>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
               </svg>
               <span>Edit Workout</span>
-            </Button>
-
-            <Button
-              onClick={handleBackClick}
-              variant="secondary"
-              rounded
-              className="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 flex items-center space-x-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-              </svg>
-              <span>Back to Home</span>
-            </Button>
-          </div>
-        )}
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Exercise List */}
