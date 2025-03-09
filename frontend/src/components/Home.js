@@ -1,7 +1,8 @@
-// frontend/src/components/Home.js (Updated with management links)
+// frontend/src/components/Home.js with component library - Fixed circular dependency
 import React, { useState } from 'react';
-import { Button, Card, Notification } from './ui';
-import { Link, useNavigate } from 'react-router-dom';
+// Import from the ui directory explicitly rather than importing a component that might import Home
+import { Button, Card, Notification } from '../components/ui';
+import { Link } from 'react-router-dom';
 
 const workouts = [
   { id: 1, name: 'Day 1: Workout A', exerciseCount: 5 },
@@ -11,7 +12,6 @@ const workouts = [
 
 const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [notification, setNotification] = useState(null);
-  const navigate = useNavigate();
 
   const showNotification = (message, type = 'success') => {
     setNotification({
@@ -108,45 +108,6 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
           </div>
         }
       />
-      
-      {/* Management Cards */}
-      <div className="grid gap-6 md:grid-cols-2 mb-10">
-        <Card className="hover:shadow-md transition-shadow duration-200 cursor-pointer"
-          onClick={() => navigate('/workouts/manage')}>
-          <div className="p-6">
-            <div className="flex items-center mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600 dark:text-indigo-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <h3 className="font-bold text-gray-800 dark:text-gray-100">Manage Workouts</h3>
-            </div>
-            <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
-              Create, edit, and delete workouts to customize your training program.
-            </p>
-            <div className="flex justify-end">
-              <Button variant="secondary" size="sm">Manage</Button>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="hover:shadow-md transition-shadow duration-200 cursor-pointer"
-          onClick={() => navigate('/exercises/library')}>
-          <div className="p-6">
-            <div className="flex items-center mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600 dark:text-indigo-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              <h3 className="font-bold text-gray-800 dark:text-gray-100">Exercise Library</h3>
-            </div>
-            <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
-              Browse all exercises and add custom exercises to your collection.
-            </p>
-            <div className="flex justify-end">
-              <Button variant="secondary" size="sm">Browse</Button>
-            </div>
-          </div>
-        </Card>
-      </div>
       
       {/* Workout Cards */}
       <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-4">Your Workouts</h3>

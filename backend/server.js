@@ -1,4 +1,4 @@
-// server.js - Updated with new endpoints for workout management
+// server.js
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
@@ -21,11 +21,7 @@ app.use(cookieParser()); // Parse cookies
 
 mongoose.connect(process.env.MONGODB_URI);
 
-// ======================
 // Models
-// ======================
-
-// User model
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
@@ -50,30 +46,6 @@ const userSchema = new mongoose.Schema({
 });
 
 const User = mongoose.model('User', userSchema);
-
-// New Workout model for custom workouts
-const workoutSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  exercises: [{
-    name: String,
-    sets: [{
-      weight: Number,
-      reps: Number,
-      completed: Boolean
-    }]
-  }]
-}, { timestamps: true });
-
-const Workout = mongoose.model('Workout', workoutSchema);
-
-// Custom Exercise Library model
-const exerciseLibrarySchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
-}, { timestamps: true });
-
-const ExerciseLibrary = mongoose.model('ExerciseLibrary', exerciseLibrarySchema);
 
 // Default workout data
 const defaultWorkouts = [
@@ -174,10 +146,7 @@ const cookieOptions = {
   maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
 };
 
-// ======================
-// Authentication Routes
-// ======================
-
+// Auth routes
 app.post('/api/signup', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -290,16 +259,11 @@ const auth = async (req, res, next) => {
   }
 };
 
-// ======================
-// Default Workout Routes
-// ======================
-
-// Get all workouts
+// Workout routes
 app.get('/api/workouts', auth, async (req, res) => {
   res.json(req.user.workouts);
 });
 
-// Get a specific workout
 app.get('/api/workouts/:day', auth, async (req, res) => {
   const workout = req.user.workouts.find(w => w.day === parseInt(req.params.day));
   res.json(workout);
@@ -448,175 +412,6 @@ app.post('/api/workouts/complete', auth, async (req, res) => {
 
     await user.save();
     res.json({ message: 'Workout completed and history saved successfully' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ======================
-// Custom Workout Routes
-// ======================
-
-// Get all custom workouts
-app.get('/api/custom-workouts', auth, async (req, res) => {
-  try {
-    const workouts = await Workout.find({ user: req.user._id });
-    res.json(workouts);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get a specific custom workout
-app.get('/api/custom-workouts/:id', auth, async (req, res) => {
-  try {
-    const workout = await Workout.findOne({ 
-      _id: req.params.id,
-      user: req.user._id 
-    });
-    
-    if (!workout) {
-      return res.status(404).json({ error: 'Workout not found' });
-    }
-    
-    res.json(workout);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Create a new custom workout
-app.post('/api/custom-workouts', auth, async (req, res) => {
-  try {
-    const { name, exercises = [] } = req.body;
-    
-    const workout = new Workout({
-      name,
-      exercises,
-      user: req.user._id
-    });
-    
-    await workout.save();
-    res.status(201).json(workout);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update a custom workout's name
-app.patch('/api/custom-workouts/:id', auth, async (req, res) => {
-  try {
-    const { name } = req.body;
-    
-    const workout = await Workout.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
-      { name },
-      { new: true }
-    );
-    
-    if (!workout) {
-      return res.status(404).json({ error: 'Workout not found' });
-    }
-    
-    res.json(workout);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update exercises in a custom workout
-app.put('/api/custom-workouts/:id/exercises', auth, async (req, res) => {
-  try {
-    const { exercises } = req.body;
-    
-    const workout = await Workout.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
-      { exercises },
-      { new: true }
-    );
-    
-    if (!workout) {
-      return res.status(404).json({ error: 'Workout not found' });
-    }
-    
-    res.json(workout);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete a custom workout
-app.delete('/api/custom-workouts/:id', auth, async (req, res) => {
-  try {
-    const workout = await Workout.findOneAndDelete({
-      _id: req.params.id,
-      user: req.user._id
-    });
-    
-    if (!workout) {
-      return res.status(404).json({ error: 'Workout not found' });
-    }
-    
-    res.json({ message: 'Workout deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ======================
-// Exercise Library Routes
-// ======================
-
-// Get all custom exercises from library
-app.get('/api/exercises/library', auth, async (req, res) => {
-  try {
-    const exercises = await ExerciseLibrary.find({ user: req.user._id });
-    res.json(exercises);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Add a custom exercise to library
-app.post('/api/exercises/library', auth, async (req, res) => {
-  try {
-    const { name } = req.body;
-    
-    // Check if the exercise already exists
-    const existingExercise = await ExerciseLibrary.findOne({
-      name: { $regex: new RegExp(`^${name}$`, 'i') },
-      user: req.user._id
-    });
-    
-    if (existingExercise) {
-      return res.status(400).json({ error: 'Exercise already exists' });
-    }
-    
-    const exercise = new ExerciseLibrary({
-      name,
-      user: req.user._id
-    });
-    
-    await exercise.save();
-    res.status(201).json(exercise);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete a custom exercise from library
-app.delete('/api/exercises/library/:id', auth, async (req, res) => {
-  try {
-    const exercise = await ExerciseLibrary.findOneAndDelete({
-      _id: req.params.id,
-      user: req.user._id
-    });
-    
-    if (!exercise) {
-      return res.status(404).json({ error: 'Exercise not found' });
-    }
-    
-    res.json({ message: 'Exercise deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
