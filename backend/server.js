@@ -588,16 +588,10 @@ app.post('/api/workouts/days', auth, async (req, res) => {
       return res.status(400).json({ error: `Day ${day} already exists` });
     }
     
-    // Create a new workout day with default exercises
+    // Create a new workout day with empty exercises array
     const newWorkout = {
       day,
-      exercises: [
-        {
-          name: "New Exercise",
-          sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
-          history: []
-        }
-      ]
+      exercises: [] // No default exercises, user will add their own
     };
     
     // Add the new workout to the user's workouts

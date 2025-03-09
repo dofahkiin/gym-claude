@@ -191,7 +191,9 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
         
         {workout.exercises && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
+            {workout.exercises.length > 0 
+              ? `${workout.exercises.length} exercise${workout.exercises.length !== 1 ? 's' : ''}` 
+              : 'No exercises - click to add'}
           </p>
         )}
         
@@ -275,6 +277,17 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {workouts.map(workout => renderWorkoutCard(workout))}
+          
+          {/* No workout message if empty */}
+          {workouts.length === 0 && !editMode && (
+            <div className="col-span-full text-center py-12 text-gray-500 dark:text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <p className="text-lg mb-2">No workouts yet</p>
+              <p>Click "Edit Workouts" to add your first workout day</p>
+            </div>
+          )}
           
           {/* Add Workout Button - Only visible in edit mode */}
           {editMode && (
