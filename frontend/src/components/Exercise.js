@@ -490,25 +490,24 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
 
       {/* Rest Timer - show prominently if active */}
       {showTimer && (
-  <Alert type="info" className="mb-6">
-    <div>
-      <h3 className="text-blue-800 dark:text-blue-300 font-medium mb-3 flex items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-        </svg>
-        Rest Timer
-      </h3>
-      <RestTimer 
-        onComplete={handleTimerComplete}
-        startTime={timerStartTime}
-        duration={restTime}
-        darkMode={darkMode}
-        onDurationChange={handleRestTimeChange}
-        exerciseId={id} // Add the exerciseId prop here
-      />
-    </div>
-  </Alert>
-)}
+        <Alert type="info" className="mb-6">
+          <div>
+            <h3 className="text-blue-800 dark:text-blue-300 font-medium mb-3 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              Rest Timer
+            </h3>
+            <RestTimer 
+              onComplete={handleTimerComplete}
+              startTime={timerStartTime}
+              duration={restTime}
+              darkMode={darkMode}
+              onDurationChange={handleRestTimeChange}
+            />
+          </div>
+        </Alert>
+      )}
 
       {/* Exercise Sets */}
       <div className="mb-6">
@@ -579,28 +578,27 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       
       {/* Rest Timer Settings */}
       {editMode && (
-  <div className="mb-6">
-    <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">Rest Timer</h3>
-    <Card className="p-4">
-      <RestTimer 
-        duration={restTime}
-        darkMode={darkMode}
-        onDurationChange={handleRestTimeChange}
-        editMode={true}
-        exerciseId={id} // Add the exerciseId prop here
-      />
-      <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
-        Customize your rest time between sets. Recommended rest times vary by program:
-        <br/>
-        • Strength: 3-5 minutes for compound exercises, 1-2 minutes for isolation
-        <br/>
-        • Hypertrophy: 1-2 minutes
-        <br/>
-        • Endurance: 30-60 seconds
-      </p>
-    </Card>
-  </div>
-)}
+        <div className="mb-6">
+          <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">Rest Timer</h3>
+          <Card className="p-4">
+            <RestTimer 
+              duration={restTime}
+              darkMode={darkMode}
+              onDurationChange={handleRestTimeChange}
+              editMode={true}
+            />
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+              Customize your rest time between sets. Recommended rest times vary by program:
+              <br/>
+              • Strength: 3-5 minutes for compound exercises, 1-2 minutes for isolation
+              <br/>
+              • Hypertrophy: 1-2 minutes
+              <br/>
+              • Endurance: 30-60 seconds
+            </p>
+          </Card>
+        </div>
+      )}
 
       {/* History Button */}
       <div className="grid grid-cols-1 gap-4">
