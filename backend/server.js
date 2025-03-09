@@ -19,6 +19,19 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser()); // Parse cookies
 
+// Add method override middleware to support PATCH/DELETE via POST
+app.use((req, res, next) => {
+  // Check for the X-HTTP-Method-Override header
+  const methodOverride = req.headers['x-http-method-override'];
+  
+  if (req.method === 'POST' && methodOverride) {
+    // Override the method
+    req.method = methodOverride;
+  }
+  
+  next();
+});
+
 mongoose.connect(process.env.MONGODB_URI);
 
 // Models
@@ -557,6 +570,42 @@ app.patch('/api/exercises/:exerciseId/rest-time', auth, async (req, res) => {
         if (exercise._id.toString() === req.params.exerciseId) {
           exerciseUpdated = true;
           return { ...exercise, restTime };
+        }
+        return exercise;
+      });
+      return workout;
+    });
+
+    if (!exerciseUpdated) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    await user.save();
+    res.json({ message: 'Rest time updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Alternative GET endpoint for updating rest time (to work around proxy limitations)
+app.get('/api/exercises/:exerciseId/rest-time', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    // Get restTime from query parameter
+    const { restTime } = req.query;
+    
+    if (restTime === undefined || parseInt(restTime) < 10 || parseInt(restTime) > 600) {
+      return res.status(400).json({ error: 'Invalid rest time. Must be between 10 and 600 seconds.' });
+    }
+    
+    let exerciseUpdated = false;
+
+    // Update the exercise in the user's workouts
+    user.workouts = user.workouts.map(workout => {
+      workout.exercises = workout.exercises.map(exercise => {
+        if (exercise._id.toString() === req.params.exerciseId) {
+          exerciseUpdated = true;
+          return { ...exercise, restTime: parseInt(restTime) };
         }
         return exercise;
       });

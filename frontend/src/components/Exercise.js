@@ -5,7 +5,7 @@ import { debounce } from 'lodash';
 import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 import workoutPrograms from '../data/workoutPrograms';
-import { apiPatch } from '../utils/apiUtils';
+import { updateRestTime } from '../utils/apiUtils';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -155,9 +155,13 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       // Then update in database
       const user = JSON.parse(localStorage.getItem('user'));
       
-      await apiPatch(`exercises/${exercise._id}/rest-time`, { 
-        restTime: newDuration 
-      }, user.token);
+      // Use our special function that handles both environments properly
+      const response = await updateRestTime(exercise._id, newDuration, user.token);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update rest time');
+      }
       
     } catch (err) {
       console.error('Failed to update rest time:', err);

@@ -1,22 +1,22 @@
-// src/utils/apiUtils.js
+// src/utils/apiUtils.js - Updated with GET fallback for problematic routes
 
 /**
  * Returns the correct base API URL based on the environment
- * This ensures API calls work in both development and production
  */
 export const getApiBaseUrl = () => {
-    // Check if we're in production by looking at the current URL
     const isProduction = window.location.hostname !== 'localhost';
-    
-    // In production, include the base path, in dev just use the direct API path
     return isProduction ? '/gym/api' : '/api';
   };
   
   /**
+   * Determines if running in production environment
+   */
+  export const isProduction = () => {
+    return window.location.hostname !== 'localhost';
+  };
+  
+  /**
    * A wrapper for fetch that automatically prepends the correct API base URL
-   * @param {string} endpoint - The API endpoint (without the base URL)
-   * @param {object} options - Fetch options
-   * @returns {Promise} - Fetch Promise
    */
   export const apiFetch = (endpoint, options = {}) => {
     const apiBaseUrl = getApiBaseUrl();
@@ -24,15 +24,12 @@ export const getApiBaseUrl = () => {
     
     return fetch(url, {
       ...options,
-      credentials: 'include', // Always include credentials
+      credentials: 'include',
     });
   };
   
   /**
    * Makes a GET request to the API
-   * @param {string} endpoint - The API endpoint
-   * @param {string} token - Auth token
-   * @returns {Promise} - Response Promise
    */
   export const apiGet = async (endpoint, token) => {
     const headers = {
@@ -44,10 +41,6 @@ export const getApiBaseUrl = () => {
   
   /**
    * Makes a POST request to the API
-   * @param {string} endpoint - The API endpoint
-   * @param {object} data - The payload
-   * @param {string} token - Auth token
-   * @returns {Promise} - Response Promise
    */
   export const apiPost = async (endpoint, data, token) => {
     const headers = {
@@ -63,38 +56,34 @@ export const getApiBaseUrl = () => {
   };
   
   /**
-   * Makes a PATCH request to the API
-   * @param {string} endpoint - The API endpoint
-   * @param {object} data - The payload
-   * @param {string} token - Auth token
-   * @returns {Promise} - Response Promise
+   * Special function to update rest time that works around server limitations
+   * Uses GET with query parameters in production, PATCH in development
    */
-  export const apiPatch = async (endpoint, data, token) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : '',
-    };
-    
-    return apiFetch(endpoint, {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify(data),
-    });
-  };
-  
-  /**
-   * Makes a DELETE request to the API
-   * @param {string} endpoint - The API endpoint
-   * @param {string} token - Auth token
-   * @returns {Promise} - Response Promise
-   */
-  export const apiDelete = async (endpoint, token) => {
-    const headers = {
-      'Authorization': token ? `Bearer ${token}` : '',
-    };
-    
-    return apiFetch(endpoint, {
-      method: 'DELETE',
-      headers,
-    });
+  export const updateRestTime = async (exerciseId, restTime, token) => {
+    if (isProduction()) {
+      // In production, use GET with query parameters as a workaround
+      const headers = {
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+      
+      // Convert the restTime update to a query parameter
+      const queryParam = `?restTime=${restTime}`;
+      
+      return apiFetch(`exercises/${exerciseId}/rest-time${queryParam}`, {
+        method: 'GET',
+        headers,
+      });
+    } else {
+      // In development, use PATCH as normal
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      };
+      
+      return apiFetch(`exercises/${exerciseId}/rest-time`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ restTime }),
+      });
+    }
   };
