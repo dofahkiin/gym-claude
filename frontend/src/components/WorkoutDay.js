@@ -1,10 +1,9 @@
-// Updated WorkoutDay.js with edit, add, and remove functionality
+// Updated WorkoutDay.js - Fixing the program display issue
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Alert, Input } from './ui';
 import commonExercises from '../data/commonExercises.json';
 import workoutPrograms from '../data/workoutPrograms';
-import WorkoutDayProgramInfo from './WorkoutDayProgramInfo';
 
 const WorkoutDay = ({ darkMode }) => {
   const { day } = useParams();
@@ -16,6 +15,8 @@ const WorkoutDay = ({ darkMode }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const searchInputRef = useRef(null);
+  const [activeProgram, setActiveProgram] = useState(null);
+  const [programInfo, setProgramInfo] = useState(null);
   
   const navigate = useNavigate();
 
@@ -47,6 +48,48 @@ const WorkoutDay = ({ darkMode }) => {
     };
 
     fetchWorkout();
+  }, [day]);
+
+  // Fetch the active program and set workout info
+  useEffect(() => {
+    const fetchActiveProgram = async () => {
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const response = await fetch('/api/user/active-program', {
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+          },
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setActiveProgram(data.activeProgram);
+          
+          // If we have an active program, find the workout day info
+          if (data.activeProgram && workoutPrograms[data.activeProgram]) {
+            const program = workoutPrograms[data.activeProgram];
+            const workoutInfo = program.workouts.find(w => w.day === parseInt(day));
+            
+            if (workoutInfo) {
+              setProgramInfo({
+                programId: data.activeProgram,
+                programName: program.name,
+                workoutName: workoutInfo.name
+              });
+            } else {
+              setProgramInfo(null);
+            }
+          } else {
+            setProgramInfo(null);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching active program:', error);
+      }
+    };
+
+    fetchActiveProgram();
   }, [day]);
 
   // Auto-focus search input when adding exercise
@@ -176,22 +219,6 @@ const WorkoutDay = ({ darkMode }) => {
     }
   };
 
-  // Add a function to identify which program a workout belongs to
-  // Add this function inside the WorkoutDay component:
-  const getProgramInfoForDay = (day) => {
-    for (const [programId, program] of Object.entries(workoutPrograms)) {
-      const workoutInfo = program.workouts.find(w => w.day === parseInt(day));
-      if (workoutInfo) {
-        return {
-          programId,
-          programName: program.name,
-          workoutName: workoutInfo.name
-        };
-      }
-    }
-    return null;
-  };
-
   // Show error only if we have an error and we're not loading
   if (error && !loading) {
     return <Alert type="error">Could not load workout data: {error}</Alert>;
@@ -205,24 +232,24 @@ const WorkoutDay = ({ darkMode }) => {
   return (
     <div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-      <div>
-        {getProgramInfoForDay(day) ? (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Day {day}: {getProgramInfoForDay(day).workoutName}</h1>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
-                {getProgramInfoForDay(day).programName}
-              </span>
-            </div>
-            <p className="text-gray-600 dark:text-gray-300">Complete all exercises in this workout</p>
-          </>
-        ) : (
-          <><WorkoutDayProgramInfo day={day} />
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Day {day}</h1>
-            <p className="text-gray-600 dark:text-gray-300">Complete all exercises in this workout</p>
-          </>
-        )}
-      </div>
+        <div>
+          {programInfo ? (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Day {day}: {programInfo.workoutName}</h1>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
+                  {programInfo.programName}
+                </span>
+              </div>
+              <p className="text-gray-600 dark:text-gray-300">Complete all exercises in this workout</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Day {day}</h1>
+              <p className="text-gray-600 dark:text-gray-300">Complete all exercises in this workout</p>
+            </>
+          )}
+        </div>
         
         <Button
           onClick={toggleEditMode}
