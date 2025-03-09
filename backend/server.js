@@ -352,6 +352,88 @@ app.get('/api/exercises/:exerciseId/history', auth, async (req, res) => {
   }
 });
 
+// Add a new set to an exercise
+app.post('/api/exercises/:exerciseId/sets', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    const { weight = 0, reps = 8 } = req.body;
+    let exerciseUpdated = false;
+
+    // Find and update the exercise in the user's workouts
+    user.workouts = user.workouts.map(workout => {
+      workout.exercises = workout.exercises.map(exercise => {
+        if (exercise._id.toString() === req.params.exerciseId) {
+          exerciseUpdated = true;
+          // Create a new set with default values
+          const newSet = {
+            weight: parseFloat(weight),
+            reps: parseInt(reps),
+            completed: false
+          };
+          // Add the new set to the exercise
+          return { 
+            ...exercise, 
+            sets: [...exercise.sets, newSet]
+          };
+        }
+        return exercise;
+      });
+      return workout;
+    });
+
+    if (!exerciseUpdated) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    await user.save();
+    res.status(201).json({ message: 'Set added successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Remove a set from an exercise
+app.delete('/api/exercises/:exerciseId/sets/:setIndex', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    const setIndex = parseInt(req.params.setIndex);
+    let exerciseUpdated = false;
+
+    // Find and update the exercise in the user's workouts
+    user.workouts = user.workouts.map(workout => {
+      workout.exercises = workout.exercises.map(exercise => {
+        if (exercise._id.toString() === req.params.exerciseId) {
+          // Ensure we have more than one set (prevent removing all sets)
+          if (exercise.sets.length <= 1) {
+            throw new Error('Cannot remove the last set');
+          }
+          
+          exerciseUpdated = true;
+          // Remove the set at the specified index
+          const updatedSets = [...exercise.sets];
+          updatedSets.splice(setIndex, 1);
+          
+          return { 
+            ...exercise, 
+            sets: updatedSets 
+          };
+        }
+        return exercise;
+      });
+      return workout;
+    });
+
+    if (!exerciseUpdated) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    await user.save();
+    res.json({ message: 'Set removed successfully' });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // Reset checkboxes
 app.post('/api/workouts/reset', auth, async (req, res) => {
   try {

@@ -1,4 +1,4 @@
-// Exercise.js updated with component library and loading state removed
+// Exercise.js updated with add/remove set functionality
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { debounce } from 'lodash';
@@ -12,6 +12,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(null);
@@ -212,6 +213,106 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     }
   }, [exercise, isWorkoutActive, updateExerciseData]);
 
+  // Handle set addition
+  const handleAddSet = async () => {
+    if (!exercise) return;
+    
+    try {
+      setActionLoading(true);
+      
+      // Get the last set's data to use as a template for the new set
+      const lastSet = exercise.sets[exercise.sets.length - 1];
+      const user = JSON.parse(localStorage.getItem('user'));
+      
+      const response = await fetch(`/api/exercises/${exercise._id}/sets`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          weight: lastSet.weight,
+          reps: lastSet.reps
+        }),
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add new set');
+      }
+      
+      // Refresh exercise data
+      const getResponse = await fetch(`/api/exercises/${exercise._id}`, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+        },
+        credentials: 'include'
+      });
+
+      if (!getResponse.ok) {
+        throw new Error('Failed to fetch updated exercise data');
+      }
+
+      const data = await getResponse.json();
+      setExercise(data);
+    } catch (err) {
+      console.error('Add set error:', err);
+      setError(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Handle set removal
+  const handleRemoveSet = async (setIndex) => {
+    if (!exercise) return;
+    
+    // Don't allow removing the last set
+    if (exercise.sets.length <= 1) {
+      setError('Cannot remove the last set');
+      return;
+    }
+    
+    try {
+      setActionLoading(true);
+      const user = JSON.parse(localStorage.getItem('user'));
+      
+      const response = await fetch(`/api/exercises/${exercise._id}/sets/${setIndex}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to remove set');
+      }
+      
+      // Refresh exercise data
+      const getResponse = await fetch(`/api/exercises/${exercise._id}`, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+        },
+        credentials: 'include'
+      });
+
+      if (!getResponse.ok) {
+        throw new Error('Failed to fetch updated exercise data');
+      }
+
+      const data = await getResponse.json();
+      setExercise(data);
+    } catch (err) {
+      console.error('Remove set error:', err);
+      setError(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Add debounced update function
   const debouncedUpdate = useCallback(
     debounce(async (exerciseId, updatedSets) => {
@@ -350,7 +451,21 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
 
       {/* Exercise Sets */}
       <div className="mb-6">
-        <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">Sets</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200">Sets</h3>
+          <Button
+            onClick={handleAddSet}
+            variant="secondary"
+            size="sm"
+            className="flex items-center space-x-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300"
+            disabled={actionLoading}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            <span>Add Set</span>
+          </Button>
+        </div>
         <div className="space-y-3">
           {exercise.sets.map((set, index) => (
             <ExerciseSet 
@@ -360,6 +475,8 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               onWeightChange={handleWeightChange}
               onRepsChange={handleRepsChange}
               onCompletionToggle={handleSetCompletion}
+              onRemove={() => handleRemoveSet(index)}
+              canRemove={exercise.sets.length > 1}
               isWorkoutActive={isWorkoutActive}
             />
           ))}
