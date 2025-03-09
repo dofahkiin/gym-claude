@@ -5,6 +5,7 @@ import { debounce } from 'lodash';
 import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 import workoutPrograms from '../data/workoutPrograms';
+import { apiPatch } from '../utils/apiUtils';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -154,15 +155,9 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       // Then update in database
       const user = JSON.parse(localStorage.getItem('user'));
       
-      await fetch(`/api/exercises/${exercise._id}/rest-time`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ restTime: newDuration }),
-        credentials: 'include'
-      });
+      await apiPatch(`exercises/${exercise._id}/rest-time`, { 
+        restTime: newDuration 
+      }, user.token);
       
     } catch (err) {
       console.error('Failed to update rest time:', err);
@@ -207,36 +202,18 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       if (!exerciseId) {
         throw new Error('No exercise ID provided');
       }
-
-      const updateResponse = await fetch(`/api/exercises/${exerciseId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sets: updatedData.sets
-        }),
-        credentials: 'include'
-      });
+  
+      await apiPatch(`exercises/${exerciseId}`, {
+        sets: updatedData.sets
+      }, user.token);
       
-      if (!updateResponse.ok) {
-        const errorData = await updateResponse.json();
-        throw new Error(`Failed to update exercise data: ${errorData.message || updateResponse.statusText}`);
-      }
-
-      const getResponse = await fetch(`/api/exercises/${exerciseId}`, {
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        credentials: 'include'
-      });
-
-      if (!getResponse.ok) {
+      const response = await apiGet(`exercises/${exerciseId}`, user.token);
+      
+      if (!response.ok) {
         throw new Error('Failed to fetch updated exercise data');
       }
-
-      const data = await getResponse.json();
+  
+      const data = await response.json();
       setExercise(data);
       return data;
     } catch (err) {
