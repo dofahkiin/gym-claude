@@ -639,7 +639,7 @@ app.delete('/api/workouts/days/:day', auth, async (req, res) => {
   }
 });
 
-// Route to clear all workout days and create new ones from a program template
+// Route to clear all workout days and create new ones from a program template 
 app.post('/api/workouts/apply-program', auth, async (req, res) => {
   try {
     const { program, programId } = req.body;
