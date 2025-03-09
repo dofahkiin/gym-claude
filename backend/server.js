@@ -269,6 +269,79 @@ app.get('/api/workouts/:day', auth, async (req, res) => {
   res.json(workout);
 });
 
+// Add a new exercise to a workout
+app.post('/api/workouts/:day/exercises', auth, async (req, res) => {
+  try {
+    const { name, sets } = req.body;
+    const workoutDay = parseInt(req.params.day);
+    
+    if (!name) {
+      return res.status(400).json({ error: 'Exercise name is required' });
+    }
+    
+    // Find the user's workout for the specified day
+    const workoutIndex = req.user.workouts.findIndex(w => w.day === workoutDay);
+    
+    if (workoutIndex === -1) {
+      return res.status(404).json({ error: 'Workout day not found' });
+    }
+    
+    // Create the new exercise
+    const newExercise = {
+      name,
+      sets: sets || Array(3).fill({ weight: 0, reps: 10, completed: false }),
+      history: []
+    };
+    
+    // Add the exercise to the workout
+    req.user.workouts[workoutIndex].exercises.push(newExercise);
+    
+    // Save the updated user
+    await req.user.save();
+    
+    res.status(201).json({ 
+      message: 'Exercise added successfully',
+      exercise: newExercise
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Remove an exercise from a workout
+app.delete('/api/workouts/:day/exercises/:exerciseId', auth, async (req, res) => {
+  try {
+    const workoutDay = parseInt(req.params.day);
+    const exerciseId = req.params.exerciseId;
+    
+    // Find the user's workout for the specified day
+    const workoutIndex = req.user.workouts.findIndex(w => w.day === workoutDay);
+    
+    if (workoutIndex === -1) {
+      return res.status(404).json({ error: 'Workout day not found' });
+    }
+    
+    // Find the exercise in the workout
+    const exerciseIndex = req.user.workouts[workoutIndex].exercises.findIndex(
+      ex => ex._id.toString() === exerciseId
+    );
+    
+    if (exerciseIndex === -1) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+    
+    // Remove the exercise from the workout
+    req.user.workouts[workoutIndex].exercises.splice(exerciseIndex, 1);
+    
+    // Save the updated user
+    await req.user.save();
+    
+    res.json({ message: 'Exercise removed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get a single exercise
 app.get('/api/exercises/:exerciseId', auth, async (req, res) => {
   try {
