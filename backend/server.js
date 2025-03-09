@@ -171,6 +171,33 @@ const normalizeExerciseName = (name) => {
   return name.toLowerCase().trim().replace(/\s+/g, '_');
 };
 
+const webpush = require('web-push');
+
+// Configure web-push with VAPID keys
+webpush.setVapidDetails(
+  process.env.VAPID_SUBJECT,
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+// Add a subscription model
+const pushSubscriptionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  subscription: Object,
+  createdAt: { type: Date, default: Date.now }
+});
+
+const PushSubscription = mongoose.model('PushSubscription', pushSubscriptionSchema);
+
+
+
+// Endpoint to get VAPID public key
+app.get('/api/vapid-public-key', (req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+
+
 // Auth routes
 app.post('/api/signup', async (req, res) => {
   try {
@@ -283,6 +310,83 @@ const auth = async (req, res, next) => {
     res.status(401).json({ error: 'Please authenticate' });
   }
 };
+
+// Endpoint to save push subscription
+app.post('/api/push-subscription', auth, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    
+    if (!subscription) {
+      return res.status(400).json({ error: 'Subscription data is required' });
+    }
+    
+    // Check if subscription already exists
+    let existingSubscription = await PushSubscription.findOne({
+      userId: req.user._id,
+      'subscription.endpoint': subscription.endpoint
+    });
+    
+    if (existingSubscription) {
+      // Update existing subscription
+      existingSubscription.subscription = subscription;
+      await existingSubscription.save();
+    } else {
+      // Create new subscription
+      const newSubscription = new PushSubscription({
+        userId: req.user._id,
+        subscription
+      });
+      await newSubscription.save();
+    }
+    
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error('Error saving push subscription:', error);
+    res.status(500).json({ error: 'Failed to save subscription' });
+  }
+});
+
+// Endpoint to test push notification
+app.post('/api/test-push-notification', auth, async (req, res) => {
+  try {
+    const subscriptions = await PushSubscription.find({ userId: req.user._id });
+    
+    if (subscriptions.length === 0) {
+      return res.status(404).json({ error: 'No push subscriptions found for this user' });
+    }
+    
+    const notification = {
+      title: 'Test Notification',
+      body: 'This is a test notification from GymTracker',
+      icon: '/logo192.png'
+    };
+    
+    // Send notification to all user subscriptions
+    const results = await Promise.all(
+      subscriptions.map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            sub.subscription,
+            JSON.stringify(notification)
+          );
+          return { success: true, endpoint: sub.subscription.endpoint };
+        } catch (error) {
+          console.error('Error sending notification:', error);
+          // If subscription is invalid, remove it
+          if (error.statusCode === 404 || error.statusCode === 410) {
+            await PushSubscription.deleteOne({ _id: sub._id });
+          }
+          return { success: false, endpoint: sub.subscription.endpoint, error: error.message };
+        }
+      })
+    );
+    
+    res.json({ results });
+  } catch (error) {
+    console.error('Error testing push notification:', error);
+    res.status(500).json({ error: 'Failed to send test notification' });
+  }
+});
 
 // Workout routes
 app.get('/api/workouts', auth, async (req, res) => {
@@ -785,6 +889,60 @@ app.get('/api/user/active-program', auth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint to send a timer notification
+app.post('/api/send-timer-notification', auth, async (req, res) => {
+  try {
+    const { exerciseId, timeRemaining } = req.body;
+    
+    if (!exerciseId) {
+      return res.status(400).json({ error: 'Exercise ID is required' });
+    }
+    
+    // Get all subscriptions for this user
+    const subscriptions = await PushSubscription.find({ userId: req.user._id });
+    
+    if (subscriptions.length === 0) {
+      return res.status(404).json({ error: 'No push subscriptions found for this user' });
+    }
+    
+    // Schedule the notification after the timer completes
+    setTimeout(async () => {
+      const notification = {
+        title: 'Rest Timer Completed',
+        body: 'Time to start your next set!',
+        icon: '/logo192.png',
+        tag: 'rest-timer',
+        data: {
+          exerciseId
+        }
+      };
+      
+      // Send notification to all user subscriptions
+      await Promise.all(
+        subscriptions.map(async (sub) => {
+          try {
+            await webpush.sendNotification(
+              sub.subscription,
+              JSON.stringify(notification)
+            );
+          } catch (error) {
+            console.error('Error sending notification:', error);
+            // If subscription is invalid, remove it
+            if (error.statusCode === 404 || error.statusCode === 410) {
+              await PushSubscription.deleteOne({ _id: sub._id });
+            }
+          }
+        })
+      );
+    }, timeRemaining * 1000);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error setting up timer notification:', error);
+    res.status(500).json({ error: 'Failed to set up timer notification' });
   }
 });
 
