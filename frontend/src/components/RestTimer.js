@@ -1,4 +1,4 @@
-// Updated RestTimer.js with background notification support
+// RestTimer.js with added notification test button
 import React, { useState, useEffect } from 'react';
 import { Button, Alert } from './ui';
 import { 
@@ -9,7 +9,9 @@ import {
   clearBackgroundTimer,
   showNotification,
   subscribeToPushNotifications,
-  sendServerPushNotification
+  sendServerPushNotification,
+  testNotification,
+  testServerPushNotification
 } from '../services/notificationService';
 
 const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationChange, editMode = false, exerciseId = null }) => {
@@ -20,6 +22,8 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationPermissionRequested, setNotificationPermissionRequested] = useState(false);
   const [serviceWorkerRegistered, setServiceWorkerRegistered] = useState(false);
+  const [testingNotification, setTestingNotification] = useState(false);
+  const [notificationTestResult, setNotificationTestResult] = useState(null);
 
   // Initialize service worker and check notification permission
   useEffect(() => {
@@ -29,13 +33,21 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
         const registration = await registerServiceWorker();
         if (registration) {
           setServiceWorkerRegistered(true);
+          console.log("Service worker registered successfully");
+        } else {
+          console.error("Failed to register service worker");
         }
         
         // Check if permission is already granted
         if (Notification.permission === 'granted') {
           setNotificationsEnabled(true);
           setNotificationPermissionRequested(true);
+          console.log("Notification permission is already granted");
+        } else {
+          console.log("Notification permission is not granted:", Notification.permission);
         }
+      } else {
+        console.log("Notifications are not supported in this browser");
       }
     };
     
@@ -48,6 +60,8 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
       // Calculate remaining time
       const remainingTime = Math.max(duration - ((Date.now() - startTime) / 1000), 0);
       
+      console.log(`Setting background timer for exercise ${exerciseId}, remainingTime: ${remainingTime}s`);
+      
       // Set a background timer
       setBackgroundTimer(exerciseId, remainingTime);
       
@@ -56,6 +70,7 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
       
       // Clean up when component unmounts or startTime changes
       return () => {
+        console.log(`Clearing background timer for exercise ${exerciseId}`);
         clearBackgroundTimer(exerciseId);
       };
     }
@@ -64,7 +79,7 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
   // Update timer display
   useEffect(() => {
     // This updates the timer display when duration prop changes
-    setTimeLeft(Math.max(duration - ((Date.now() - startTime) / 1000), 0));
+    setTimeLeft(startTime ? Math.max(duration - ((Date.now() - startTime) / 1000), 0) : duration);
   }, [duration, startTime]);
 
   // Handle foreground timer
@@ -101,15 +116,79 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
 
   // Request notification permission and subscribe to push
   const handleRequestPermission = async () => {
-    const granted = await requestNotificationPermission();
-    
-    if (granted) {
-      // Subscribe to push notifications
-      const subscribed = await subscribeToPushNotifications();
-      setNotificationsEnabled(subscribed);
+    try {
+      const granted = await requestNotificationPermission();
+      
+      if (granted) {
+        // Subscribe to push notifications
+        const subscribed = await subscribeToPushNotifications();
+        setNotificationsEnabled(subscribed);
+        
+        if (subscribed) {
+          console.log("Successfully subscribed to push notifications");
+        } else {
+          console.error("Failed to subscribe to push notifications");
+        }
+      } else {
+        console.log("Notification permission was denied");
+      }
+      
+      setNotificationPermissionRequested(true);
+    } catch (error) {
+      console.error("Error requesting permission:", error);
     }
+  };
+
+  // Handle notification test
+  const handleTestNotification = async () => {
+    setTestingNotification(true);
+    setNotificationTestResult(null);
     
-    setNotificationPermissionRequested(true);
+    try {
+      const testResult = await testNotification();
+      setNotificationTestResult({
+        success: testResult,
+        message: testResult 
+          ? "Notification test successful! You should see a notification."
+          : "Notification test failed. Check console for errors."
+      });
+    } catch (error) {
+      console.error("Error testing notification:", error);
+      setNotificationTestResult({
+        success: false,
+        message: "Error testing notification: " + error.message
+      });
+    } finally {
+      setTimeout(() => {
+        setTestingNotification(false);
+      }, 2000);
+    }
+  };
+
+  // Handle server push notification test
+  const handleTestServerPush = async () => {
+    setTestingNotification(true);
+    setNotificationTestResult(null);
+    
+    try {
+      const testResult = await testServerPushNotification();
+      setNotificationTestResult({
+        success: testResult,
+        message: testResult 
+          ? "Server push notification test sent successfully!"
+          : "Server push test failed. Check console for errors."
+      });
+    } catch (error) {
+      console.error("Error testing server push:", error);
+      setNotificationTestResult({
+        success: false,
+        message: "Error testing server push: " + error.message
+      });
+    } finally {
+      setTimeout(() => {
+        setTestingNotification(false);
+      }, 2000);
+    }
   };
 
   // Format time as M:SS
@@ -143,7 +222,11 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
   // Notification permission button
   const renderNotificationPermissionButton = () => {
     if (!areNotificationsSupported()) {
-      return null;
+      return (
+        <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+          Notifications are not supported in this browser.
+        </div>
+      );
     }
 
     if (notificationsEnabled) {
@@ -155,6 +238,31 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
             </svg>
             Notifications enabled
           </div>
+          
+          <div className="mt-2 flex space-x-2 justify-center">
+            <Button
+              onClick={handleTestNotification}
+              variant="secondary"
+              size="sm"
+              disabled={testingNotification}
+            >
+              Test Local Notification
+            </Button>
+            <Button
+              onClick={handleTestServerPush}
+              variant="secondary"
+              size="sm"
+              disabled={testingNotification}
+            >
+              Test Server Push
+            </Button>
+          </div>
+          
+          {notificationTestResult && (
+            <div className={`mt-2 text-sm ${notificationTestResult.success ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              {notificationTestResult.message}
+            </div>
+          )}
         </div>
       );
     }
@@ -186,6 +294,24 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
     );
   };
 
+  // Display notification support information
+  const renderNotificationDetails = () => {
+    // Only show in edit mode for debugging purposes
+    if (!editMode) return null;
+    
+    return (
+      <div className="mt-4 p-3 border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-800/60">
+        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Notification Status:</h4>
+        <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+          <li>• API Supported: {areNotificationsSupported() ? 'Yes' : 'No'}</li>
+          <li>• Permission: {Notification.permission}</li>
+          <li>• Service Worker: {serviceWorkerRegistered ? 'Registered' : 'Not Registered'}</li>
+          <li>• Notifications Enabled: {notificationsEnabled ? 'Yes' : 'No'}</li>
+        </ul>
+      </div>
+    );
+  };
+
   // Use the running timer if active, otherwise show the duration editor
   if (startTime && !isEditing) {
     return (
@@ -201,6 +327,7 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
         </div>
         <p className="text-center mt-2 text-gray-600 dark:text-gray-300 text-sm">Rest between sets</p>
         {renderNotificationPermissionButton()}
+        {renderNotificationDetails()}
       </div>
     );
   }
@@ -278,6 +405,7 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
           </Button>
         </div>
         {renderNotificationPermissionButton()}
+        {renderNotificationDetails()}
       </div>
     );
   }
@@ -298,6 +426,7 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
         )}
       </div>
       {renderNotificationPermissionButton()}
+      {renderNotificationDetails()}
     </div>
   );
 };

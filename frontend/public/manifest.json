@@ -22,7 +22,6 @@
   "display": "standalone",
   "theme_color": "#4f46e5",
   "background_color": "#ffffff",
-  "gcm_sender_id": "YOUR_SENDER_ID",
   "permissions": [
     "notifications"
   ]
