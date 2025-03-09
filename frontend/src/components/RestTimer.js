@@ -62,10 +62,13 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
       
       console.log(`Setting background timer for exercise ${exerciseId}, remainingTime: ${remainingTime}s`);
       
-      // Set a background timer
-      setBackgroundTimer(exerciseId, remainingTime);
+      // Priority: Use the service worker timer if we're on a supported browser with service worker registered
+      // Only use the server push notification as a fallback or when specifically requested
       
-      // Also set up server-side push notification as a backup
+      // Set a background timer via service worker (local device)
+      // setBackgroundTimer(exerciseId, remainingTime);
+      
+      // We don't need both notification mechanisms - comment out the server push or only use it as fallback
       sendServerPushNotification(exerciseId, remainingTime);
       
       // Clean up when component unmounts or startTime changes
