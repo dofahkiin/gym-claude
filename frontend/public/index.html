@@ -22,8 +22,12 @@
     
     <!-- iOS PWA Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="GymTracker">
+    
+    <!-- Dynamic theme color for iOS based on dark mode -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#4f46e5">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#312e81">
     
     <!-- Ensure dark mode doesn't flash -->
     <script>
@@ -31,6 +35,8 @@
       const savedTheme = localStorage.getItem('darkMode');
       if (savedTheme === 'true') {
         document.documentElement.classList.add('dark');
+        // Set theme-color meta tag for dark mode
+        document.querySelector('meta[name="theme-color"]:not([media])').setAttribute('content', '#312e81');
       }
     </script>
   </head>

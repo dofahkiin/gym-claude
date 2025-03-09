@@ -1,4 +1,4 @@
-// Updated ThemeToggle.js with design classes
+// Updated ThemeToggle.js with status bar color update
 import React, { useEffect } from 'react';
 import { Button } from './ui';
 
@@ -7,8 +7,18 @@ const ThemeToggle = ({ darkMode, setDarkMode }) => {
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
+      // Update theme-color meta tag for dark mode
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]:not([media])');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', '#312e81'); // indigo-900
+      }
     } else {
       document.documentElement.classList.remove('dark');
+      // Update theme-color meta tag for light mode
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]:not([media])');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', '#4f46e5'); // indigo-600
+      }
     }
     // Save preference to localStorage
     localStorage.setItem('darkMode', darkMode ? 'true' : 'false');
