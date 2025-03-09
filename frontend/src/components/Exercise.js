@@ -1,9 +1,10 @@
-// Exercise.js updated with add/remove set functionality
+// Exercise.js updated with customizable rest timer
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { debounce } from 'lodash';
 import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
+import workoutPrograms from '../data/workoutPrograms';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -14,6 +15,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [restTime, setRestTime] = useState(90); // Default to 90 seconds
   
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(null);
@@ -67,6 +69,35 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
         
         const data = await response.json();
         setExercise(data);
+        
+        // Set rest time
+        if (data.restTime) {
+          setRestTime(data.restTime);
+        } else {
+          // If no rest time is set, use default based on active program
+          const fetchActiveProgram = async () => {
+            try {
+              const programResponse = await fetch('/api/user/active-program', {
+                headers: {
+                  'Authorization': `Bearer ${user.token}`,
+                },
+                credentials: 'include'
+              });
+              
+              if (programResponse.ok) {
+                const programData = await programResponse.json();
+                if (programData.activeProgram && workoutPrograms[programData.activeProgram]) {
+                  // Set default rest time from the program
+                  setRestTime(workoutPrograms[programData.activeProgram].defaultRestTime || 90);
+                }
+              }
+            } catch (err) {
+              console.error('Error fetching program:', err);
+            }
+          };
+          
+          fetchActiveProgram();
+        }
 
         // Check for existing timer
         const savedTimer = localStorage.getItem(`timer_${data._id}`);
@@ -75,7 +106,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
           const elapsedSeconds = (Date.now() - startTime) / 1000;
           
           // Only set the timer if it hasn't expired
-          if (elapsedSeconds < 90) {
+          if (elapsedSeconds < restTime) {
             setTimerStartTime(startTime);
           } else {
             localStorage.removeItem(`timer_${data._id}`);
@@ -89,7 +120,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     };
 
     fetchExerciseData();
-  }, [id]);
+  }, [id, restTime]);
 
   // Update current index when exercise and exercises list are loaded
   useEffect(() => {
@@ -112,6 +143,33 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     }
   }, [currentIndex, exercises, navigate, day]);
 
+  // Update rest time
+  const handleRestTimeChange = async (newDuration) => {
+    try {
+      if (!exercise) return;
+      
+      // Update local state immediately for responsive UI
+      setRestTime(newDuration);
+      
+      // Then update in database
+      const user = JSON.parse(localStorage.getItem('user'));
+      
+      await fetch(`/api/exercises/${exercise._id}/rest-time`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ restTime: newDuration }),
+        credentials: 'include'
+      });
+      
+    } catch (err) {
+      console.error('Failed to update rest time:', err);
+      setError('Failed to update rest time');
+    }
+  };
+
   // Handle timer completion
   const handleTimerComplete = useCallback(() => {
     if (!exercise) return;
@@ -125,21 +183,21 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
 
     const checkTimer = () => {
       const elapsedSeconds = (Date.now() - timerStartTime) / 1000;
-      if (elapsedSeconds >= 90) {
+      if (elapsedSeconds >= restTime) {
         handleTimerComplete();
       }
     };
 
     const intervalId = setInterval(checkTimer, 1000);
     return () => clearInterval(intervalId);
-  }, [timerStartTime, exercise, handleTimerComplete]);
+  }, [timerStartTime, exercise, handleTimerComplete, restTime]);
 
   // Calculate if timer should be shown
   const showTimer = useMemo(() => {
     if (!timerStartTime) return false;
     const elapsedSeconds = (Date.now() - timerStartTime) / 1000;
-    return elapsedSeconds < 90;
-  }, [timerStartTime]);
+    return elapsedSeconds < restTime;
+  }, [timerStartTime, restTime]);
 
   // Update exercise data
   const updateExerciseData = useCallback(async (exerciseId, updatedData) => {
@@ -443,8 +501,9 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
             <RestTimer 
               onComplete={handleTimerComplete}
               startTime={timerStartTime}
-              duration={90}
+              duration={restTime}
               darkMode={darkMode}
+              onDurationChange={handleRestTimeChange}
             />
           </div>
         </Alert>
@@ -515,6 +574,28 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
             </Button>
           </div>
         )}
+      </div>
+      
+      {/* Rest Timer Settings */}
+      <div className="mb-6">
+        <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-4">Rest Timer</h3>
+        <Card className="p-4">
+          <RestTimer 
+            duration={restTime}
+            darkMode={darkMode}
+            onDurationChange={handleRestTimeChange}
+            editMode={true}
+          />
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+            Customize your rest time between sets. Recommended rest times vary by program:
+            <br/>
+            • Strength: 3-5 minutes for compound exercises, 1-2 minutes for isolation
+            <br/>
+            • Hypertrophy: 1-2 minutes
+            <br/>
+            • Endurance: 30-60 seconds
+          </p>
+        </Card>
       </div>
 
       {/* History Button */}

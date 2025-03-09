@@ -41,7 +41,8 @@ const userSchema = new mongoose.Schema({
           weight: Number,
           reps: Number
         }]
-      }]
+      }],
+      restTime: { type: Number, default: 90 } // Add rest time with default 90 seconds
     }]
   }]
 });
@@ -55,31 +56,38 @@ const defaultWorkouts = [
     exercises: [
       {
         name: "Smith Machine Bench Press",
-        sets: Array(3).fill({ weight: 0, reps: 8, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 8, completed: false }),
+        restTime: 90
       },
       {
         name: "Machine Lat Pulldown",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Machine Leg Curl",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Machine Shoulder Press",
-        sets: Array(2).fill({ weight: 0, reps: 8, completed: false })
+        sets: Array(2).fill({ weight: 0, reps: 8, completed: false }),
+        restTime: 90
       },
       {
         name: "Dumbbell Alternating Incline Curl",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Cable Tricep Pushdown (Rope)",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Barbell Bulgarian Split Squat",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       }
     ]
   },
@@ -88,27 +96,33 @@ const defaultWorkouts = [
     exercises: [
       {
         name: "Machine Incline Chest Press",
-        sets: Array(3).fill({ weight: 0, reps: 8, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 8, completed: false }),
+        restTime: 90
       },
       {
         name: "Cable Seated Row",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Machine Leg Press",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Dumbbell Lateral Raise",
-        sets: Array(2).fill({ weight: 0, reps: 15, completed: false })
+        sets: Array(2).fill({ weight: 0, reps: 15, completed: false }),
+        restTime: 90
       },
       {
         name: "Dumbbell Hammer Curl",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Barbell Seated Tricep Extension",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       }
     ]
   },
@@ -117,23 +131,28 @@ const defaultWorkouts = [
     exercises: [
       {
         name: "Machine Leg Extension",
-        sets: Array(3).fill({ weight: 0, reps: 15, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 15, completed: false }),
+        restTime: 90
       },
       {
         name: "Machine Seated Leg Curl",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Barbell Preacher Curl",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Ez Bar Tricep Extension",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       },
       {
         name: "Barbell Bulgarian Split Squat",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
+        restTime: 90
       }
     ]
   }
@@ -278,7 +297,7 @@ app.get('/api/workouts/:day', auth, async (req, res) => {
 // Add a new exercise to a workout
 app.post('/api/workouts/:day/exercises', auth, async (req, res) => {
   try {
-    const { name, sets } = req.body;
+    const { name, sets, restTime } = req.body;
     const workoutDay = parseInt(req.params.day);
     
     if (!name) {
@@ -292,11 +311,21 @@ app.post('/api/workouts/:day/exercises', auth, async (req, res) => {
       return res.status(404).json({ error: 'Workout day not found' });
     }
     
+    // Get active program to determine default rest time
+    let defaultRestTime = 90; // Default to 90 seconds if no program is active
+    
+    // If user has an active program, use the program's default rest time
+    if (req.user.activeProgram) {
+      // Here we would ideally fetch from a database of programs, but since that's in your frontend,
+      // we'll just have this logic in the frontend when the api is called
+    }
+    
     // Create the new exercise
     const newExercise = {
       name,
       sets: sets || Array(3).fill({ weight: 0, reps: 10, completed: false }),
-      history: []
+      history: [],
+      restTime: restTime || defaultRestTime // Use provided rest time or default
     };
     
     // Add the exercise to the workout
@@ -400,6 +429,42 @@ app.patch('/api/exercises/:exerciseId', auth, async (req, res) => {
 
     await user.save();
     res.json({ message: 'Exercise updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint to update exercise rest time
+app.patch('/api/exercises/:exerciseId/rest-time', auth, async (req, res) => {
+  try {
+    const user = req.user;
+    const { restTime } = req.body;
+    
+    // Validate rest time
+    if (restTime === undefined || restTime < 10 || restTime > 600) {
+      return res.status(400).json({ error: 'Invalid rest time. Must be between 10 and 600 seconds.' });
+    }
+    
+    let exerciseUpdated = false;
+
+    // Update the exercise in the user's workouts
+    user.workouts = user.workouts.map(workout => {
+      workout.exercises = workout.exercises.map(exercise => {
+        if (exercise._id.toString() === req.params.exerciseId) {
+          exerciseUpdated = true;
+          return { ...exercise, restTime };
+        }
+        return exercise;
+      });
+      return workout;
+    });
+
+    if (!exerciseUpdated) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    await user.save();
+    res.json({ message: 'Rest time updated successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -680,7 +745,8 @@ app.post('/api/workouts/apply-program', auth, async (req, res) => {
             reps: exerciseData.reps,
             completed: false
           }),
-          history: [] // Initialize with empty history
+          history: [], // Initialize with empty history
+          restTime: exerciseData.restTime || program.defaultRestTime || 90 // Use exercise-specific rest time, program default, or fallback to 90s
         };
         
         // Restore history if this exercise existed before
