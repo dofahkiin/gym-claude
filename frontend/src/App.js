@@ -9,6 +9,7 @@ import Exercise from './components/Exercise';
 import ThemeToggle from './components/ThemeToggle';
 import { Link } from 'react-router-dom';
 import ExerciseHistory from './components/ExerciseHistory'; 
+import { initializeNotifications } from './utils/notificationService';
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -36,6 +37,13 @@ const App = () => {
             setUser(data.user);
             // Also update localStorage for backward compatibility
             localStorage.setItem('user', JSON.stringify(data.user));
+
+            // Add this: Initialize notifications after authentication
+            initializeNotifications().then(success => {
+            if (success) {
+              console.log('Push notifications initialized successfully');
+            }
+          });
           } else {
             // Fallback to localStorage if cookie auth fails
             const storedUser = localStorage.getItem('user');

@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const cookieParser = require('cookie-parser'); // Add cookie-parser
+const webpush = require('web-push');
 
 if (!process.env.JWT_SECRET || !process.env.MONGODB_URI) {
   throw new Error('Missing required environment variables');
@@ -26,6 +27,14 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   activeProgram: { type: String, default: null }, // Store the active program ID
+  pushSubscriptions: [{
+    endpoint: String,
+    keys: {
+      p256dh: String,
+      auth: String
+    },
+    createdAt: { type: Date, default: Date.now }
+  }],
   workouts: [{
     day: Number,
     exercises: [{
@@ -170,6 +179,24 @@ const cookieOptions = {
 const normalizeExerciseName = (name) => {
   return name.toLowerCase().trim().replace(/\s+/g, '_');
 };
+
+// Add this code after the other initialization code
+// Generate VAPID keys if they don't exist (in production, these should be stored in env variables)
+if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+  console.log('Generating VAPID keys for push notifications...');
+  const vapidKeys = webpush.generateVAPIDKeys();
+  process.env.VAPID_PUBLIC_KEY = vapidKeys.publicKey;
+  process.env.VAPID_PRIVATE_KEY = vapidKeys.privateKey;
+  console.log('VAPID Public Key:', process.env.VAPID_PUBLIC_KEY);
+  console.log('VAPID Private Key:', process.env.VAPID_PRIVATE_KEY);
+}
+
+// Configure web-push with VAPID details
+webpush.setVapidDetails(
+  'mailto:support@gymtracker.example.com', // Contact email for push service
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
 // Auth routes
 app.post('/api/signup', async (req, res) => {
@@ -784,6 +811,109 @@ app.get('/api/user/active-program', auth, async (req, res) => {
       activeProgram: req.user.activeProgram || null
     });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint to get VAPID public key
+app.get('/api/notifications/vapid-public-key', (req, res) => {
+  res.send(process.env.VAPID_PUBLIC_KEY);
+});
+
+// Endpoint to store push subscription
+app.post('/api/notifications/subscribe', auth, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    const user = req.user;
+    
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: 'Invalid subscription data' });
+    }
+    
+    // Check if this subscription already exists for this user
+    const existingSubscription = user.pushSubscriptions.find(
+      sub => sub.endpoint === subscription.endpoint
+    );
+    
+    if (!existingSubscription) {
+      // Add the new subscription
+      user.pushSubscriptions.push({
+        endpoint: subscription.endpoint,
+        keys: subscription.keys
+      });
+      
+      await user.save();
+    }
+    
+    res.status(201).json({ message: 'Subscription stored successfully' });
+  } catch (error) {
+    console.error('Error storing push subscription:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint to send a notification
+app.post('/api/notifications/send', auth, async (req, res) => {
+  try {
+    const { title, body, url } = req.body;
+    const user = req.user;
+    
+    if (!title || !body) {
+      return res.status(400).json({ error: 'Title and body are required' });
+    }
+    
+    if (!user.pushSubscriptions || user.pushSubscriptions.length === 0) {
+      return res.status(404).json({ error: 'No push subscriptions found for this user' });
+    }
+    
+    // Create notification payload
+    const payload = JSON.stringify({
+      title,
+      body,
+      url: url || '/gym'
+    });
+    
+    // Send notification to all subscriptions
+    const results = [];
+    const validSubscriptions = [];
+    
+    for (const subscription of user.pushSubscriptions) {
+      try {
+        await webpush.sendNotification({
+          endpoint: subscription.endpoint,
+          keys: subscription.keys
+        }, payload);
+        
+        validSubscriptions.push(subscription);
+        results.push({ success: true, endpoint: subscription.endpoint });
+      } catch (error) {
+        console.error('Error sending notification to subscription:', error);
+        
+        // Only keep subscriptions that didn't return a 404 or 410 (subscription expired)
+        if (error.statusCode !== 404 && error.statusCode !== 410) {
+          validSubscriptions.push(subscription);
+        }
+        
+        results.push({ 
+          success: false, 
+          endpoint: subscription.endpoint, 
+          error: error.message 
+        });
+      }
+    }
+    
+    // Update user subscriptions if any were removed
+    if (validSubscriptions.length < user.pushSubscriptions.length) {
+      user.pushSubscriptions = validSubscriptions;
+      await user.save();
+    }
+    
+    res.json({ 
+      message: 'Notification processing complete',
+      results
+    });
+  } catch (error) {
+    console.error('Error sending notifications:', error);
     res.status(500).json({ error: error.message });
   }
 });

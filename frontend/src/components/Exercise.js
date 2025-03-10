@@ -5,6 +5,7 @@ import { debounce } from 'lodash';
 import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 import workoutPrograms from '../data/workoutPrograms';
+import { sendNotification } from '../utils/notificationService';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -175,6 +176,15 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     if (!exercise) return;
     setTimerStartTime(null);
     localStorage.removeItem(`timer_${exercise._id}`);
+    
+    // Send notification if app is in background
+    if (document.visibilityState === 'hidden') {
+      sendNotification(
+        'Rest Time Complete',
+        `Time to start your next set of ${exercise.name}!`,
+        window.location.href
+      );
+    }
   }, [exercise]);
 
   // Check timer expiration periodically
