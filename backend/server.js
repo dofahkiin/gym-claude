@@ -978,6 +978,124 @@ app.post('/api/notifications/send', auth, async (req, res) => {
   }
 });
 
+// Endpoint to schedule a notification for a future time
+app.post('/api/notifications/schedule', auth, async (req, res) => {
+  try {
+    const { title, body, url, delaySeconds } = req.body;
+    const user = req.user;
+    
+    console.log('Scheduling notification:', { title, body, url, delaySeconds });
+    
+    if (!title || !body || !delaySeconds || typeof delaySeconds !== 'number') {
+      return res.status(400).json({ error: 'Title, body, and delaySeconds are required' });
+    }
+    
+    if (!user.pushSubscriptions || user.pushSubscriptions.length === 0) {
+      return res.status(404).json({ error: 'No push subscriptions found for this user' });
+    }
+    
+    // Schedule the notification to be sent after the specified delay
+    const scheduledTime = Date.now() + (delaySeconds * 1000);
+    
+    // Store scheduled notification in memory (in a production app, you would use a database)
+    if (!global.scheduledNotifications) {
+      global.scheduledNotifications = [];
+    }
+    
+    global.scheduledNotifications.push({
+      userId: user._id.toString(),
+      subscriptions: user.pushSubscriptions,
+      title, 
+      body,
+      url: url || '/gym',
+      scheduledTime
+    });
+    
+    // Set up the notification processor if not already running
+    if (!global.notificationInterval) {
+      global.notificationInterval = setInterval(processScheduledNotifications, 1000); // Check every second
+    }
+    
+    res.status(201).json({ 
+      message: 'Notification scheduled successfully',
+      scheduledTime: new Date(scheduledTime).toISOString()
+    });
+  } catch (error) {
+    console.error('Error scheduling notification:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Function to process scheduled notifications (add this anywhere in server.js)
+async function processScheduledNotifications() {
+  if (!global.scheduledNotifications || global.scheduledNotifications.length === 0) {
+    return;
+  }
+  
+  const now = Date.now();
+  const toSend = [];
+  
+  // Find notifications that need to be sent
+  global.scheduledNotifications = global.scheduledNotifications.filter(notification => {
+    if (notification.scheduledTime <= now) {
+      toSend.push(notification);
+      return false; // Remove from the list
+    }
+    return true; // Keep in the list
+  });
+  
+  // Send the notifications
+  for (const notification of toSend) {
+    try {
+      console.log('Sending scheduled notification:', notification.title);
+      
+      // Create notification payload
+      const payload = JSON.stringify({
+        title: notification.title,
+        body: notification.body,
+        url: notification.url
+      });
+      
+      // Send to all subscriptions for this user
+      const validSubscriptions = [];
+      
+      for (const subscription of notification.subscriptions) {
+        try {
+          if (!subscription.endpoint || !subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
+            console.error('Invalid subscription format:', subscription);
+            continue;
+          }
+          
+          await webpush.sendNotification({
+            endpoint: subscription.endpoint,
+            keys: subscription.keys
+          }, payload);
+          
+          validSubscriptions.push(subscription);
+        } catch (error) {
+          console.error('Error sending scheduled notification:', error);
+          
+          // Only keep subscriptions that didn't return a 404 or 410 (subscription expired)
+          if (error.statusCode !== 404 && error.statusCode !== 410) {
+            validSubscriptions.push(subscription);
+          }
+        }
+      }
+      
+      // Update user's subscriptions if any were removed
+      if (validSubscriptions.length < notification.subscriptions.length) {
+        const user = await User.findById(notification.userId);
+        if (user) {
+          user.pushSubscriptions = validSubscriptions;
+          await user.save();
+        }
+      }
+    } catch (error) {
+      console.error('Error processing scheduled notification:', error);
+    }
+  }
+}
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

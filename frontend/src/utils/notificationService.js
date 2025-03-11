@@ -541,6 +541,60 @@ const debugNotificationSystem = async () => {
   console.groupEnd();
 };
 
+// Schedule a notification to be sent after a delay
+const scheduleNotification = async (title, body, url, delaySeconds) => {
+  try {
+    console.log('Scheduling notification to be sent in', delaySeconds, 'seconds:', { title, body });
+    
+    const user = JSON.parse(localStorage.getItem('user'));
+    
+    if (!user || !user.token) {
+      console.error('User not authenticated');
+      return false;
+    }
+    
+    // Check if notifications are supported and enabled
+    if (!areNotificationsSupported()) {
+      console.error('Notifications not supported in this browser');
+      return false;
+    }
+    
+    if (Notification.permission !== 'granted') {
+      console.error('Notification permission not granted');
+      return false;
+    }
+    
+    // Send scheduling request to server
+    const response = await fetch('/api/notifications/schedule', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user.token}`
+      },
+      body: JSON.stringify({ 
+        title, 
+        body, 
+        url, 
+        delaySeconds
+      }),
+      credentials: 'include'
+    });
+    
+    const responseData = await response.json();
+    console.log('Server schedule response:', responseData);
+    
+    if (!response.ok) {
+      console.error('Server returned error:', responseData);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error scheduling notification:', error);
+    return false;
+  }
+};
+
 // Add debug utility to window for console access
 window.debugNotifications = debugNotificationSystem;
 
@@ -551,5 +605,6 @@ export {
   getNotificationPermissionStatus,
   areNotificationsSupported,
   showLocalNotification,
-  debugNotificationSystem
+  debugNotificationSystem,
+  scheduleNotification  // Add this line
 };

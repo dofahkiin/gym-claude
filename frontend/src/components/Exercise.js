@@ -5,7 +5,7 @@ import { debounce } from 'lodash';
 import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 import workoutPrograms from '../data/workoutPrograms';
-import { sendNotification } from '../utils/notificationService';
+import { sendNotification, scheduleNotification } from '../utils/notificationService';
 import NotificationHelper from './NotificationHelper';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
@@ -59,13 +59,8 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               localStorage.removeItem(timerKey);
               setTimerStartTime(null);
               
-              // Send notification immediately
-              console.log('Timer expired while in background, sending notification');
-              sendNotification(
-                'Rest Time Complete',
-                `Time to start your next set of ${exercise.name}!`,
-                window.location.href
-              );
+              // No need to send a notification here, as the server handles it
+              console.log('Timer expired while in background, server notification should have been sent');
             } else {
               // Timer still running, update the state
               setTimerStartTime(startTime);
@@ -239,7 +234,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     }
   };
 
-  // Handle timer completion - IMPROVED
+  // Modify the handleTimerComplete function in Exercise.js to prevent duplicate notifications
   const handleTimerComplete = useCallback(() => {
     if (!exercise) return;
     
@@ -247,14 +242,11 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     setTimerStartTime(null);
     localStorage.removeItem(`timer_${exercise._id}`);
     
-    // Send notification for both foreground and background cases
-    console.log('Timer completed, sending notification. Visibility:', document.visibilityState);
+    // We're now relying on server-side notifications, so no need to send one here
+    console.log('Timer completed locally. Server will send the notification.');
     
-    sendNotification(
-      'Rest Time Complete',
-      `Time to start your next set of ${exercise.name}!`,
-      window.location.href
-    );
+    // But if the app is active (in foreground), we could still show a UI notification
+    // or play a sound if desired
   }, [exercise]);
 
   // Check timer expiration - IMPROVED
@@ -356,7 +348,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
             // Start the timer when a set is marked complete
             const startTime = Date.now();
             
-            // Update state
+            // Update state for the UI timer
             setTimerStartTime(startTime);
             
             // Store in localStorage for persistence across page refreshes/visibility changes
@@ -368,13 +360,27 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               startTime,
               restTime
             });
+            
+            // Schedule a server-side notification to be sent after the rest time
+            scheduleNotification(
+              'Rest Time Complete',
+              `Time to start your next set of ${exercise.name}!`,
+              window.location.href,
+              restTime  // delay in seconds
+            ).then(success => {
+              if (success) {
+                console.log('Server-side notification scheduled successfully');
+              } else {
+                console.error('Failed to schedule server-side notification');
+              }
+            });
           }
           
           return { ...set, completed: newCompleted };
         }
         return set;
       });
-
+  
       const updatedExercise = await updateExerciseData(exercise._id, { sets: updatedSets });
       setExercise(updatedExercise);
     } catch (err) {
