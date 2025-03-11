@@ -1,6 +1,7 @@
 {
     "short_name": "GymTracker",
     "name": "Gym Tracker App",
+    "gcm_sender_id": "103953800507",
     "icons": [
       {
         "src": "favicon.ico",
