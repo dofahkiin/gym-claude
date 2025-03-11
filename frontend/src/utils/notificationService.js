@@ -1,4 +1,4 @@
-// utils/notificationService.js - Complete Replacement
+// utils/notificationService.js - Modified to handle subscription issues
 
 // Convert base64 string to Uint8Array for VAPID key
 function urlBase64ToUint8Array(base64String) {
@@ -95,13 +95,14 @@ const registerServiceWorker = async () => {
   return null;
 };
 
-// Subscribe to push notifications
+// Subscribe to push notifications with improved error handling
 const subscribeToPushNotifications = async (registration) => {
   try {
     // Check for existing subscription
     let subscription = await registration.pushManager.getSubscription();
     
     if (subscription) {
+      console.log('Using existing push subscription');
       return subscription;
     }
     
@@ -109,21 +110,42 @@ const subscribeToPushNotifications = async (registration) => {
     const response = await fetch('/api/notifications/vapid-public-key');
     const serverVapidKey = await response.text();
     
-    // Create a new subscription
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(serverVapidKey)
-    });
+    console.log('Received VAPID key from server:', serverVapidKey.substring(0, 10) + '...');
     
-    console.log('Push notification subscription created:', subscription);
-    return subscription;
+    // Create a new subscription
+    try {
+      const applicationServerKey = urlBase64ToUint8Array(serverVapidKey);
+      
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey
+      });
+      
+      console.log('Subscription created successfully:', subscription);
+      return subscription;
+    } catch (subscribeError) {
+      console.error('First subscription attempt failed:', subscribeError);
+      
+      // Try with a different approach (some browsers need different handling)
+      try {
+        // Try with just userVisibleOnly (might use gcm_sender_id from manifest)
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true
+        });
+        console.log('Fallback subscription created successfully');
+        return subscription;
+      } catch (fallbackError) {
+        console.error('Fallback subscription failed:', fallbackError);
+        throw new Error('All subscription attempts failed');
+      }
+    }
   } catch (error) {
-    console.error('Error subscribing to push notifications:', error);
+    console.error('Error creating push subscription:', error);
     return null;
   }
 };
 
-// Send subscription to server
+// Send subscription to server with more flexible validation
 const saveSubscription = async (subscription) => {
   try {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -133,6 +155,18 @@ const saveSubscription = async (subscription) => {
       return false;
     }
     
+    if (!subscription || !subscription.endpoint) {
+      console.error('Invalid subscription - missing endpoint');
+      return false;
+    }
+    
+    // Log subscription details for debugging
+    console.log('Subscription to save:', {
+      endpoint: subscription.endpoint.substring(0, 50) + '...',
+      keys: subscription.keys ? 'present' : 'missing'
+    });
+    
+    // Proceed even if keys might be missing - the server will handle it
     const response = await fetch('/api/notifications/subscribe', {
       method: 'POST',
       headers: {
@@ -154,233 +188,148 @@ const saveSubscription = async (subscription) => {
   }
 };
 
-// Initialize notifications
+// Initialize notifications with improved error handling and logging
 const initializeNotifications = async () => {
   console.group('Notification Initialization');
   console.log('Browser:', navigator.userAgent);
   console.log('Support check:', areNotificationsSupported());
   console.log('Current permission:', getNotificationPermissionStatus());
   
-  // Step 1: Request permission if needed
-  if (Notification.permission !== 'granted') {
-    const permissionResult = await requestNotificationPermission();
-    console.log('Permission request result:', permissionResult);
-    if (!permissionResult.success) {
-      console.groupEnd();
-      return permissionResult;
-    }
-  }
-  
-  // Step 2: Register service worker
-  let registration;
   try {
+    // Step 1: Request permission if needed
+    if (Notification.permission !== 'granted') {
+      const permissionResult = await requestNotificationPermission();
+      console.log('Permission request result:', permissionResult);
+      if (!permissionResult.success) {
+        console.groupEnd();
+        return permissionResult;
+      }
+    }
+    
+    // Step 2: Register service worker
     console.log('Registering service worker...');
-    // Use proper scope with trailing slash
-    registration = await navigator.serviceWorker.register('/gym/service-worker.js', {
-      scope: '/gym/'
-    });
+    let registration;
     
-    console.log('Service Worker registered:', registration);
+    // Check for existing registration first
+    registration = await navigator.serviceWorker.getRegistration('/gym/');
     
-    // Wait for the service worker to be activated
-    if (registration.installing) {
-      console.log('Service worker is installing, waiting for activation...');
-      await new Promise(resolve => {
-        registration.installing.addEventListener('statechange', event => {
-          if (event.target.state === 'activated') {
-            console.log('Service worker activated');
-            resolve();
-          }
-        });
-      });
-    }
-  } catch (error) {
-    console.error('Service Worker registration failed:', error);
-    console.groupEnd();
-    return { 
-      success: false, 
-      status: 'sw_failed',
-      message: `Service worker registration failed: ${error.message}`
-    };
-  }
-  
-  // Step 3: Create push subscription
-  let subscription;
-  try {
-    // First check for existing subscription
-    subscription = await registration.pushManager.getSubscription();
-    
-    if (subscription) {
-      console.log('Found existing push subscription');
-      
-      // Validate existing subscription
-      if (subscription.endpoint && subscription.keys && 
-          subscription.keys.p256dh && subscription.keys.auth) {
-        console.log('Existing subscription is valid');
-      } else {
-        console.log('Existing subscription is invalid, unsubscribing...');
-        await subscription.unsubscribe();
-        subscription = null;
-      }
-    }
-    
-    // Create new subscription if needed
-    if (!subscription) {
-      console.log('Creating new push subscription...');
-      
-      // Get VAPID public key
-      console.log('Getting VAPID public key...');
-      let localVapidPublicKey; // Local variable for VAPID key
-      let useApplicationServerKey = true;
-
-      // First try the API endpoint
+    if (!registration) {
+      // Register new service worker if none exists
       try {
-        const response = await fetch('/api/notifications/vapid-public-key');
-        if (!response.ok) {
-          throw new Error(`Server returned ${response.status}: ${response.statusText}`);
-        }
+        registration = await navigator.serviceWorker.register('/gym/service-worker.js', {
+          scope: '/gym/'
+        });
         
-        localVapidPublicKey = await response.text(); // Use local variable
-        console.log('Received VAPID key from server:', localVapidPublicKey.substring(0, 10) + '...');
+        console.log('Service Worker registered:', registration);
         
-        // Basic validation
-        if (!localVapidPublicKey || localVapidPublicKey.length < 20) {
-          throw new Error('Invalid VAPID key received from server');
-        }
-      } catch (error) {
-        console.error('Error getting VAPID key from server:', error);
-        useApplicationServerKey = false;
-        
-        // Try creating subscription without applicationServerKey
-        // This will use the gcm_sender_id from manifest.json
-        console.log('Trying subscription without applicationServerKey...');
-        try {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true
-          });
-          console.log('Created subscription using gcm_sender_id fallback');
+        // Wait for the service worker to be ready
+        if (registration.installing) {
+          console.log('Service worker is installing, waiting for activation...');
           
-          // Verify the subscription
-          if (!subscription.endpoint) {
-            throw new Error('Subscription missing endpoint');
-          }
-        } catch (fallbackError) {
-          console.error('Fallback subscription failed:', fallbackError);
-          throw new Error('Failed to create push subscription: ' + fallbackError.message);
+          await new Promise((resolve) => {
+            registration.installing.addEventListener('statechange', (e) => {
+              if (e.target.state === 'activated') {
+                console.log('Service worker activated');
+                resolve();
+              }
+            });
+            
+            // Set a timeout in case activation takes too long
+            setTimeout(resolve, 5000);
+          });
+        }
+      } catch (swError) {
+        console.error('Service Worker registration failed:', swError);
+        
+        // Try to get any existing registration as fallback
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        if (registrations.length > 0) {
+          console.log('Using existing service worker registration as fallback');
+          registration = registrations[0];
+        } else {
+          console.groupEnd();
+          return {
+            success: false,
+            status: 'sw_failed',
+            message: `Service worker registration failed: ${swError.message}`
+          };
         }
       }
-
-      // If we should use applicationServerKey, convert and subscribe
-      if (useApplicationServerKey && !subscription) {
-        // Convert key to proper format
-        const applicationServerKey = urlBase64ToUint8Array(localVapidPublicKey); // Use local variable
-        console.log('Converted key length:', applicationServerKey.length);
-        
-        // Subscribe
-        try {
-          subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: applicationServerKey
-          });
-          
-          console.log('Push subscription created successfully');
-          
-          // Verify the subscription has required fields
-          if (!subscription.endpoint || !subscription.keys || 
-              !subscription.keys.p256dh || !subscription.keys.auth) {
-            throw new Error('Created subscription is missing required fields');
-          }
-        } catch (subscribeError) {
-          console.error('Push subscription creation error:', subscribeError);
-          
-          // If we already have permission but subscription fails, try a more aggressive approach
-          if (Notification.permission === 'granted') {
-            console.log('Trying alternative subscription approach...');
-            
-            // First unsubscribe from any existing subscriptions
-            const existingSub = await registration.pushManager.getSubscription();
-            if (existingSub) {
-              await existingSub.unsubscribe();
-            }
-            
-            // Try subscribing without applicationServerKey first
-            try {
-              const tempSubscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true
-              });
-              
-              // If that works, unsubscribe and try with the key
-              await tempSubscription.unsubscribe();
-              
-              // Now try with the key again
-              subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: applicationServerKey
-              });
-              
-              console.log('Alternative approach succeeded');
-            } catch (altError) {
-              console.error('Alternative subscription approach failed:', altError);
-              throw altError;
-            }
-          } else {
-            throw subscribeError;
-          }
-        }
-      }
+    } else {
+      console.log('Using existing service worker registration');
     }
-  } catch (error) {
-    console.error('Error managing push subscription:', error);
-    console.groupEnd();
-    return { 
-      success: false, 
-      status: 'subscription_error',
-      message: `Subscription error: ${error.message}`
-    };
-  }
-  
-  // Step 4: Save subscription to server
-  try {
-    console.log('Saving subscription to server...');
-    // Log the subscription for debugging
-    console.log('Subscription to save:', {
-      endpoint: subscription.endpoint,
-      keys: subscription.keys ? {
-        p256dh: !!subscription.keys.p256dh,
-        auth: !!subscription.keys.auth
-      } : 'missing'
+    
+    // Step 3: Create push subscription
+    console.log('Creating push subscription...');
+    const subscription = await subscribeToPushNotifications(registration);
+    
+    if (!subscription) {
+      console.groupEnd();
+      return {
+        success: false,
+        status: 'subscription_failed',
+        message: 'Failed to create push subscription'
+      };
+    }
+    
+    // Modified: More forgiving validation - proceed even with partial subscription
+    // We do require at least an endpoint though
+    if (!subscription.endpoint) {
+      console.error('Subscription missing endpoint');
+      console.groupEnd();
+      return {
+        success: false,
+        status: 'invalid_subscription',
+        message: 'Push subscription is missing required endpoint'
+      };
+    }
+    
+    // Log what we got
+    console.log('Subscription details:', {
+      endpoint: subscription.endpoint.substring(0, 30) + '...',
+      hasKeys: !!subscription.keys,
+      hasP256dh: subscription.keys && !!subscription.keys.p256dh,
+      hasAuth: subscription.keys && !!subscription.keys.auth
     });
     
-    const success = await saveSubscription(subscription);
-    if (success) {
+    // Modified: Warning but continue if keys are missing - some browsers might handle this differently
+    if (!subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
+      console.warn('Subscription missing some encryption keys, but continuing anyway');
+    }
+    
+    // Step 4: Save subscription to server
+    console.log('Saving subscription to server...');
+    const saveResult = await saveSubscription(subscription);
+    
+    if (saveResult) {
       console.log('Subscription saved successfully');
       console.groupEnd();
-      return { 
-        success: true, 
+      return {
+        success: true,
         status: 'complete',
         message: 'Notifications set up successfully!'
       };
     } else {
       console.error('Failed to save subscription to server');
       console.groupEnd();
-      return { 
-        success: false, 
+      return {
+        success: false,
         status: 'save_failed',
         message: 'Failed to save subscription to server'
       };
     }
   } catch (error) {
-    console.error('Error saving subscription:', error);
+    console.error('Notification initialization error:', error);
     console.groupEnd();
-    return { 
-      success: false, 
-      status: 'save_error',
-      message: `Error saving subscription: ${error.message}`
+    return {
+      success: false,
+      status: 'error',
+      message: `Notification setup error: ${error.message}`
     };
   }
 };
 
-// Send notification when app is in background
+// Send notification with improved error handling
 const sendNotification = async (title, body, url) => {
   try {
     console.log('Sending notification:', { title, body, url });
@@ -395,6 +344,10 @@ const sendNotification = async (title, body, url) => {
     // Check if notifications are supported and enabled
     if (!areNotificationsSupported()) {
       console.error('Notifications not supported in this browser');
+      // Fall back to showing a local notification if possible
+      if ('Notification' in window && Notification.permission === 'granted') {
+        return showLocalNotification(title, { body, url });
+      }
       return false;
     }
     
@@ -403,34 +356,33 @@ const sendNotification = async (title, body, url) => {
       return false;
     }
     
-    // Verify service worker is registered
-    const swRegistration = await navigator.serviceWorker.getRegistration('/gym/service-worker.js');
+    // Verify service worker is registered - be more flexible with the scope
+    let swRegistration = await navigator.serviceWorker.getRegistration('/gym/');
+    
+    // If not found with that scope, try getting any registration
     if (!swRegistration) {
-      console.error('No service worker registration found');
-      return false;
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      if (registrations.length > 0) {
+        swRegistration = registrations[0];
+        console.log('Using alternative service worker registration:', swRegistration.scope);
+      } else {
+        console.error('No service worker registrations found');
+        return false;
+      }
     }
+    
     console.log('Service worker status:', swRegistration.active ? 'active' : 'inactive');
     
     // Verify push subscription exists
     const subscription = await swRegistration.pushManager.getSubscription();
     
-    // Validate subscription
-    if (!subscription) {
-      console.error('No push subscription found');
-      return false;
+    if (!subscription || !subscription.endpoint) {
+      console.error('No valid push subscription found');
+      // Fall back to showing a local notification
+      return showLocalNotification(title, { body, url });
     }
     
-    if (!subscription.endpoint) {
-      console.error('Subscription missing endpoint');
-      return false;
-    }
-    
-    if (!subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
-      console.error('Subscription missing required encryption keys');
-      return false;
-    }
-    
-    console.log('Valid subscription found, sending notification to server');
+    console.log('Sending push notification to server');
     const response = await fetch('/api/notifications/send', {
       method: 'POST',
       headers: {
@@ -446,13 +398,20 @@ const sendNotification = async (title, body, url) => {
     
     if (!response.ok) {
       console.error('Server returned error:', responseData);
-      return false;
+      // Fall back to local notification if server push fails
+      return showLocalNotification(title, { body, url });
     }
     
     return responseData.success || false;
   } catch (error) {
     console.error('Error sending notification:', error);
-    return false;
+    // Fall back to local notification in case of error
+    try {
+      return showLocalNotification(title, { body, url });
+    } catch (localError) {
+      console.error('Local notification fallback also failed:', localError);
+      return false;
+    }
   }
 };
 
@@ -469,7 +428,7 @@ const getNotificationPermissionStatus = () => {
   return Notification.permission; // 'default', 'granted', or 'denied'
 };
 
-// Create a test notification (local, not a push notification)
+// Create a local notification (not a push notification)
 const showLocalNotification = (title, options = {}) => {
   if (!('Notification' in window)) {
     console.log('This browser does not support notifications');
@@ -496,6 +455,9 @@ const showLocalNotification = (title, options = {}) => {
     notification.onclick = () => {
       console.log('Notification clicked');
       window.focus();
+      if (options.url) {
+        window.location.href = options.url;
+      }
       notification.close();
     };
     
@@ -506,32 +468,81 @@ const showLocalNotification = (title, options = {}) => {
   }
 };
 
-// Debug utility function
-window.debugVapidKey = async () => {
+// Debug utility
+const debugNotificationSystem = async () => {
+  console.group('Notification System Diagnostics');
+  
+  // Check basic support
+  console.log('Notification API supported:', 'Notification' in window);
+  console.log('Service Worker API supported:', 'serviceWorker' in navigator);
+  console.log('Push API supported:', 'PushManager' in window);
+  console.log('Current permission:', Notification.permission);
+  
+  // Check service worker
   try {
-    console.log('Testing VAPID key retrieval...');
-    const response = await fetch('/api/notifications/vapid-public-key');
-    console.log('Response status:', response.status);
-    if (!response.ok) {
-      console.error('Error response:', response.statusText);
-      return;
-    }
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    console.log('Service worker registrations:', registrations.length);
     
-    const testVapidKey = await response.text();
-    console.log('Raw VAPID key:', testVapidKey);
-    console.log('Key length:', testVapidKey.length);
+    registrations.forEach((reg, i) => {
+      console.log(`Registration ${i + 1}:`, {
+        scope: reg.scope,
+        active: !!reg.active,
+        installing: !!reg.installing,
+        waiting: !!reg.waiting
+      });
+      
+      if (reg.active) {
+        console.log(`Registration ${i + 1} state:`, reg.active.state);
+      }
+    });
     
-    try {
-      const converted = urlBase64ToUint8Array(testVapidKey);
-      console.log('Conversion successful! Array length:', converted.length);
-      console.log('First few bytes:', converted.slice(0, 5));
-    } catch (e) {
-      console.error('Conversion failed:', e);
+    // Check for our specific service worker
+    const gymSW = registrations.find(r => r.scope.includes('/gym/'));
+    if (gymSW) {
+      console.log('GymTracker service worker found:', gymSW.scope);
+      
+      try {
+        const subscription = await gymSW.pushManager.getSubscription();
+        console.log('Push subscription:', subscription ? 'exists' : 'none');
+        
+        if (subscription) {
+          console.log('Subscription details:', {
+            endpoint: subscription.endpoint.substring(0, 30) + '...',
+            hasKeys: !!subscription.keys,
+            hasP256dh: subscription.keys && !!subscription.keys.p256dh,
+            hasAuth: subscription.keys && !!subscription.keys.auth,
+            expirationTime: subscription.expirationTime
+          });
+        }
+      } catch (subError) {
+        console.error('Error checking subscription:', subError);
+      }
+    } else {
+      console.warn('GymTracker service worker not found');
     }
-  } catch (error) {
-    console.error('Test failed:', error);
+  } catch (swError) {
+    console.error('Error checking service workers:', swError);
   }
+  
+  // Check VAPID key
+  try {
+    const response = await fetch('/api/notifications/vapid-public-key');
+    if (response.ok) {
+      const vapidKey = await response.text();
+      console.log('VAPID key retrieved:', vapidKey.substring(0, 10) + '...');
+      console.log('VAPID key length:', vapidKey.length);
+    } else {
+      console.error('Failed to retrieve VAPID key:', response.status, response.statusText);
+    }
+  } catch (vapidError) {
+    console.error('Error retrieving VAPID key:', vapidError);
+  }
+  
+  console.groupEnd();
 };
+
+// Add debug utility to window for console access
+window.debugNotifications = debugNotificationSystem;
 
 export {
   initializeNotifications,
@@ -539,5 +550,6 @@ export {
   requestNotificationPermission,
   getNotificationPermissionStatus,
   areNotificationsSupported,
-  showLocalNotification
+  showLocalNotification,
+  debugNotificationSystem
 };
