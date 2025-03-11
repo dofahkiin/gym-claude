@@ -16,21 +16,38 @@ function urlBase64ToUint8Array(base64String) {
     return outputArray;
   }
   
-  // Request notification permission
-  const requestNotificationPermission = async () => {
-    try {
-      if (!('Notification' in window)) {
-        console.log('This browser does not support notifications');
-        return false;
-      }
-      
-      const permission = await Notification.requestPermission();
-      return permission === 'granted';
-    } catch (error) {
-      console.error('Error requesting notification permission:', error);
-      return false;
+// Request notification permission with better error handling and logging
+const requestNotificationPermission = async () => {
+  try {
+    if (!('Notification' in window)) {
+      console.log('This browser does not support notifications');
+      return { 
+        success: false, 
+        status: 'unsupported',
+        message: 'This browser does not support notifications'
+      };
     }
-  };
+    
+    console.log('Requesting notification permission...');
+    const permission = await Notification.requestPermission();
+    console.log('Permission result:', permission);
+    
+    return { 
+      success: permission === 'granted',
+      status: permission,
+      message: permission === 'granted' 
+        ? 'Notification permission granted!' 
+        : `Permission ${permission}. ${permission === 'denied' ? 'Please enable notifications in your browser settings.' : 'Please allow notifications when prompted.'}`
+    };
+  } catch (error) {
+    console.error('Error requesting notification permission:', error);
+    return { 
+      success: false, 
+      status: 'error',
+      message: `Error: ${error.message}`
+    };
+  }
+};
   
   // Register the service worker
   const registerServiceWorker = async () => {
@@ -109,22 +126,105 @@ function urlBase64ToUint8Array(base64String) {
   };
   
   // Initialize notifications
-  const initializeNotifications = async () => {
-    // Step 1: Request permission
-    const permissionGranted = await requestNotificationPermission();
-    if (!permissionGranted) return false;
+// Updated initialize function with better logging
+const initializeNotifications = async () => {
+  console.log('Initializing notifications...');
+  console.log('Support check:', areNotificationsSupported());
+  console.log('Current permission:', getNotificationPermissionStatus());
+  
+  // Step 1: Request permission
+  const permissionResult = await requestNotificationPermission();
+  console.log('Permission request result:', permissionResult);
+  if (!permissionResult.success) return permissionResult;
+  
+  // Step 2: Register service worker
+  let registration;
+  try {
+    console.log('Registering service worker...');
+    registration = await navigator.serviceWorker.register('/gym/service-worker.js');
+    console.log('Service Worker registered:', registration);
+  } catch (error) {
+    console.error('Service Worker registration failed:', error);
+    return { 
+      success: false, 
+      status: 'sw_failed',
+      message: `Service worker registration failed: ${error.message}`
+    };
+  }
+  
+  // Step 3: Subscribe to push notifications
+  let subscription;
+  try {
+    console.log('Checking for existing push subscription...');
+    subscription = await registration.pushManager.getSubscription();
     
-    // Step 2: Register service worker
-    const registration = await registerServiceWorker();
-    if (!registration) return false;
-    
-    // Step 3: Subscribe to push notifications
-    const subscription = await subscribeToPushNotifications(registration);
-    if (!subscription) return false;
-    
-    // Step 4: Save subscription to server
-    return await saveSubscription(subscription);
-  };
+    if (subscription) {
+      console.log('Found existing push subscription:', subscription);
+    } else {
+      console.log('No subscription found, creating new one...');
+      try {
+        // Get the server's public key
+        const response = await fetch('/api/notifications/vapid-public-key');
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+        
+        const vapidPublicKey = await response.text();
+        console.log('Received VAPID public key from server');
+        
+        // Create a new subscription
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        });
+        
+        console.log('Push notification subscription created:', subscription);
+      } catch (error) {
+        console.error('Error subscribing to push notifications:', error);
+        return { 
+          success: false, 
+          status: 'subscribe_failed',
+          message: `Push subscription failed: ${error.message}`
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Error managing push subscription:', error);
+    return { 
+      success: false, 
+      status: 'subscription_error',
+      message: `Subscription error: ${error.message}`
+    };
+  }
+  
+  // Step 4: Save subscription to server
+  try {
+    console.log('Saving subscription to server...');
+    const success = await saveSubscription(subscription);
+    if (success) {
+      console.log('Subscription saved successfully');
+      return { 
+        success: true, 
+        status: 'complete',
+        message: 'Notifications set up successfully!'
+      };
+    } else {
+      console.error('Failed to save subscription to server');
+      return { 
+        success: false, 
+        status: 'save_failed',
+        message: 'Failed to save subscription to server'
+      };
+    }
+  } catch (error) {
+    console.error('Error saving subscription:', error);
+    return { 
+      success: false, 
+      status: 'save_error',
+      message: `Error saving subscription: ${error.message}`
+    };
+  }
+};
   
   // Send notification when app is in background
   const sendNotification = async (title, body, url) => {
@@ -156,8 +256,62 @@ function urlBase64ToUint8Array(base64String) {
       return false;
     }
   };
+
+// Check if notifications are supported
+const areNotificationsSupported = () => {
+  return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
+};  
+
+// Get current notification permission status
+const getNotificationPermissionStatus = () => {
+  if (!('Notification' in window)) {
+    return 'unsupported';
+  }
+  return Notification.permission; // 'default', 'granted', or 'denied'
+};
+
+// Create a test notification (local, not a push notification)
+const showLocalNotification = (title, options = {}) => {
+  if (!('Notification' in window)) {
+    console.log('This browser does not support notifications');
+    return false;
+  }
   
-  export {
-    initializeNotifications,
-    sendNotification
-  };
+  if (Notification.permission !== 'granted') {
+    console.log('Notification permission not granted');
+    return false;
+  }
+  
+  try {
+    // Basic notification options
+    const notificationOptions = {
+      body: options.body || 'This is a test notification',
+      icon: options.icon || '/gym/logo192.png',
+      ...options
+    };
+    
+    // Show a notification directly (without push)
+    const notification = new Notification(title, notificationOptions);
+    
+    // Handle notification click
+    notification.onclick = () => {
+      console.log('Notification clicked');
+      window.focus();
+      notification.close();
+    };
+    
+    return true;
+  } catch (error) {
+    console.error('Error showing notification:', error);
+    return false;
+  }
+};
+  
+export {
+  initializeNotifications,
+  sendNotification,
+  requestNotificationPermission,
+  getNotificationPermissionStatus,
+  areNotificationsSupported,
+  showLocalNotification
+};

@@ -6,6 +6,7 @@ import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 import workoutPrograms from '../data/workoutPrograms';
 import { sendNotification } from '../utils/notificationService';
+import NotificationHelper from './NotificationHelper';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -186,6 +187,23 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       );
     }
   }, [exercise]);
+
+  // Then add this function alongside your other handler functions in Exercise.js
+const handleTestNotification = () => {
+  if (!exercise) return;
+  
+  sendNotification(
+    'Test Notification',
+    `This is a test notification for ${exercise.name}`,
+    window.location.href
+  ).then(success => {
+    if (success) {
+      alert('Test notification sent successfully! Check your notifications.');
+    } else {
+      alert('Failed to send test notification. Make sure notifications are enabled in your browser settings.');
+    }
+  });
+};
 
   // Check timer expiration periodically
   useEffect(() => {
@@ -495,8 +513,26 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               style={{ width: `${((currentIndex + 1) / (exercises?.length || 1)) * 100}%` }}
             />
           </div>
+
+{/* Add the test notification button below the progress bar */}
+<div className="mt-3 flex justify-end">
+    <Button
+      onClick={handleTestNotification}
+      variant="secondary"
+      size="sm"
+      className="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 flex items-center space-x-1"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+      </svg>
+      <span>Test Notification</span>
+    </Button>
+  </div>
+
         </div>
       </Card>
+
+      <NotificationHelper />
 
       {/* Rest Timer - show prominently if active */}
       {showTimer && (
