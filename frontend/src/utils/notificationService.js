@@ -150,10 +150,9 @@ const initializeNotifications = async () => {
   let registration;
   try {
     console.log('Registering service worker...');
-    const baseUrl = window.location.pathname.startsWith('/gym') ? '/gym' : '';
-registration = await navigator.serviceWorker.register(`${baseUrl}/service-worker.js`, {
-  scope: baseUrl || '/'
-});
+    registration = await navigator.serviceWorker.register('/gym/service-worker.js', {
+      scope: '/gym/'  // Note the trailing slash which is critical
+    });
     console.log('Service Worker registered:', registration);
     console.log('Service Worker state:', registration.active ? 'active' : 'inactive');
     
