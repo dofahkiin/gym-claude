@@ -10,29 +10,41 @@ self.addEventListener('install', (event) => {
   
   // Handle push events (when a notification is received)
   self.addEventListener('push', (event) => {
-    if (!event.data) return;
+    console.log('Push notification received', event);
     
-    const data = event.data.json();
+    if (!event.data) {
+      console.warn('Received push event with no data');
+      return;
+    }
     
-    // Configure notification options
-    const options = {
-      body: data.body,
-      icon: '/logo192.png', // Use your app icon
-      badge: '/logo192.png',
-      vibrate: [100, 50, 100],
-      data: {
-        url: data.url || '/gym' // Default to your app path
-      }
-    };
-    
-    // Show the notification
-    event.waitUntil(
-      self.registration.showNotification(data.title, options)
-    );
+    try {
+      const data = event.data.json();
+      console.log('Notification data:', data);
+      
+      // Configure notification options
+      const options = {
+        body: data.body,
+        icon: '/logo192.png', // Use your app icon
+        badge: '/logo192.png',
+        vibrate: [100, 50, 100],
+        data: {
+          url: data.url || '/gym' // Default to your app path
+        }
+      };
+      
+      // Show the notification
+      event.waitUntil(
+        self.registration.showNotification(data.title, options)
+      );
+    } catch (error) {
+      console.error('Error processing push notification:', error);
+    }
   });
   
   // Handle notification clicks
   self.addEventListener('notificationclick', (event) => {
+    console.log('Notification clicked', event);
+    
     event.notification.close();
     
     // Navigate to the appropriate URL when notification is clicked

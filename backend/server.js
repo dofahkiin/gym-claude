@@ -7,6 +7,8 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const cookieParser = require('cookie-parser'); // Add cookie-parser
 const webpush = require('web-push');
+const fs = require('fs');
+const path = require('path');
 
 if (!process.env.JWT_SECRET || !process.env.MONGODB_URI) {
   throw new Error('Missing required environment variables');
@@ -180,16 +182,50 @@ const normalizeExerciseName = (name) => {
   return name.toLowerCase().trim().replace(/\s+/g, '_');
 };
 
-// Add this code after the other initialization code
-// Generate VAPID keys if they don't exist (in production, these should be stored in env variables)
-if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
-  console.log('Generating VAPID keys for push notifications...');
-  const vapidKeys = webpush.generateVAPIDKeys();
+// Load or generate VAPID keys (store persistently)
+let vapidKeys;
+const VAPID_KEY_PATH = path.join(__dirname, '.vapid-keys.json');
+
+try {
+  // Try to load existing keys
+  if (fs.existsSync(VAPID_KEY_PATH)) {
+    const keyData = fs.readFileSync(VAPID_KEY_PATH, 'utf8');
+    vapidKeys = JSON.parse(keyData);
+    console.log('Loaded existing VAPID keys');
+  } else if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    // Use environment variables if available
+    vapidKeys = {
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      privateKey: process.env.VAPID_PRIVATE_KEY
+    };
+    console.log('Using VAPID keys from environment variables');
+    // Save for future use
+    fs.writeFileSync(VAPID_KEY_PATH, JSON.stringify(vapidKeys), 'utf8');
+  } else {
+    // Generate new keys
+    console.log('Generating new VAPID keys for push notifications...');
+    vapidKeys = webpush.generateVAPIDKeys();
+    // Save keys to file for persistence
+    fs.writeFileSync(VAPID_KEY_PATH, JSON.stringify(vapidKeys), 'utf8');
+    console.log('New VAPID keys generated and saved');
+  }
+  
+  // Set the keys in environment for use in the app
   process.env.VAPID_PUBLIC_KEY = vapidKeys.publicKey;
   process.env.VAPID_PRIVATE_KEY = vapidKeys.privateKey;
-  console.log('VAPID Public Key:', process.env.VAPID_PUBLIC_KEY);
-  console.log('VAPID Private Key:', process.env.VAPID_PRIVATE_KEY);
+} catch (error) {
+  console.error('Error handling VAPID keys:', error);
+  
+  // Fallback to generating new keys in memory (not persistent)
+  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+    console.log('Falling back to in-memory VAPID keys (not persistent)');
+    const tempKeys = webpush.generateVAPIDKeys();
+    process.env.VAPID_PUBLIC_KEY = tempKeys.publicKey;
+    process.env.VAPID_PRIVATE_KEY = tempKeys.privateKey;
+  }
 }
+
+console.log('VAPID Public Key:', process.env.VAPID_PUBLIC_KEY);
 
 // Configure web-push with VAPID details
 webpush.setVapidDetails(
@@ -858,6 +894,9 @@ app.post('/api/notifications/send', auth, async (req, res) => {
     const { title, body, url } = req.body;
     const user = req.user;
     
+    console.log('Notification request received:', { title, body, url });
+    console.log('User subscriptions count:', user.pushSubscriptions?.length || 0);
+    
     if (!title || !body) {
       return res.status(400).json({ error: 'Title and body are required' });
     }
@@ -870,7 +909,7 @@ app.post('/api/notifications/send', auth, async (req, res) => {
     const payload = JSON.stringify({
       title,
       body,
-      url: url || '/gym'
+      url: url || '/gym' // Default to your app path
     });
     
     // Send notification to all subscriptions
@@ -879,38 +918,59 @@ app.post('/api/notifications/send', auth, async (req, res) => {
     
     for (const subscription of user.pushSubscriptions) {
       try {
+        console.log('Sending notification to endpoint:', subscription.endpoint.substring(0, 50) + '...');
+        
+        // Validate subscription
+        if (!subscription.endpoint || !subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
+          console.error('Invalid subscription format:', subscription);
+          results.push({ 
+            success: false, 
+            endpoint: subscription.endpoint || 'unknown', 
+            error: 'Invalid subscription format' 
+          });
+          continue;
+        }
+        
         await webpush.sendNotification({
           endpoint: subscription.endpoint,
           keys: subscription.keys
         }, payload);
         
+        console.log('Notification sent successfully');
         validSubscriptions.push(subscription);
         results.push({ success: true, endpoint: subscription.endpoint });
       } catch (error) {
-        console.error('Error sending notification to subscription:', error);
+        console.error('Error sending notification:', error);
         
         // Only keep subscriptions that didn't return a 404 or 410 (subscription expired)
         if (error.statusCode !== 404 && error.statusCode !== 410) {
           validSubscriptions.push(subscription);
+        } else {
+          console.log('Removing expired subscription');
         }
         
         results.push({ 
           success: false, 
           endpoint: subscription.endpoint, 
-          error: error.message 
+          error: error.message,
+          statusCode: error.statusCode
         });
       }
     }
     
     // Update user subscriptions if any were removed
     if (validSubscriptions.length < user.pushSubscriptions.length) {
+      console.log('Updating user subscriptions:', `${user.pushSubscriptions.length} -> ${validSubscriptions.length}`);
       user.pushSubscriptions = validSubscriptions;
       await user.save();
     }
     
+    console.log('Notification processing complete:', results);
+    
     res.json({ 
       message: 'Notification processing complete',
-      results
+      results,
+      success: results.some(r => r.success)
     });
   } catch (error) {
     console.error('Error sending notifications:', error);

@@ -94,57 +94,84 @@ const requestNotificationPermission = async () => {
     }
   };
   
-  // Send subscription to server
-  const saveSubscription = async (subscription) => {
-    try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      
-      if (!user || !user.token) {
-        console.error('User not authenticated');
-        return false;
-      }
-      
-      const response = await fetch('/api/notifications/subscribe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.token}`
-        },
-        body: JSON.stringify({ subscription }),
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save subscription to server');
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error saving subscription:', error);
+  // Enhance the saveSubscription function
+const saveSubscription = async (subscription) => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user'));
+    
+    if (!user || !user.token) {
+      console.error('User not authenticated');
       return false;
     }
-  };
+    
+    console.log('Sending subscription to server:', subscription);
+    const response = await fetch('/api/notifications/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user.token}`
+      },
+      body: JSON.stringify({ subscription }),
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Server error:', errorData);
+      throw new Error(`Failed to save subscription: ${errorData.error || response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('Server response:', data);
+    return true;
+  } catch (error) {
+    console.error('Error saving subscription:', error);
+    return false;
+  }
+};
   
   // Initialize notifications
-// Updated initialize function with better logging
+// Enhanced initialize function with more detailed logging
 const initializeNotifications = async () => {
-  console.log('Initializing notifications...');
+  console.group('Notification Initialization');
+  console.log('Browser:', navigator.userAgent);
   console.log('Support check:', areNotificationsSupported());
   console.log('Current permission:', getNotificationPermissionStatus());
   
   // Step 1: Request permission
   const permissionResult = await requestNotificationPermission();
   console.log('Permission request result:', permissionResult);
-  if (!permissionResult.success) return permissionResult;
+  if (!permissionResult.success) {
+    console.groupEnd();
+    return permissionResult;
+  }
   
   // Step 2: Register service worker
   let registration;
   try {
     console.log('Registering service worker...');
-    registration = await navigator.serviceWorker.register('/gym/service-worker.js');
+    const baseUrl = window.location.pathname.startsWith('/gym') ? '/gym' : '';
+registration = await navigator.serviceWorker.register(`${baseUrl}/service-worker.js`, {
+  scope: baseUrl || '/'
+});
     console.log('Service Worker registered:', registration);
+    console.log('Service Worker state:', registration.active ? 'active' : 'inactive');
+    
+    // Wait for the service worker to be activated if needed
+    if (registration.installing) {
+      console.log('Service worker is installing, waiting for activation...');
+      await new Promise(resolve => {
+        registration.installing.addEventListener('statechange', event => {
+          if (event.target.state === 'activated') {
+            console.log('Service worker activated');
+            resolve();
+          }
+        });
+      });
+    }
   } catch (error) {
     console.error('Service Worker registration failed:', error);
+    console.groupEnd();
     return { 
       success: false, 
       status: 'sw_failed',
@@ -159,28 +186,35 @@ const initializeNotifications = async () => {
     subscription = await registration.pushManager.getSubscription();
     
     if (subscription) {
-      console.log('Found existing push subscription:', subscription);
+      console.log('Found existing push subscription');
+      await validatePushSubscription(subscription);
     } else {
       console.log('No subscription found, creating new one...');
       try {
-        // Get the server's public key
+        console.log('Fetching VAPID public key...');
         const response = await fetch('/api/notifications/vapid-public-key');
         if (!response.ok) {
           throw new Error(`Server returned ${response.status}: ${response.statusText}`);
         }
         
         const vapidPublicKey = await response.text();
-        console.log('Received VAPID public key from server');
+        console.log('Received VAPID public key from server, first 10 chars:', vapidPublicKey.substring(0, 10) + '...');
+        
+        const convertedKey = urlBase64ToUint8Array(vapidPublicKey);
+        console.log('Converted key length:', convertedKey.length);
         
         // Create a new subscription
+        console.log('Creating new push subscription...');
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+          applicationServerKey: convertedKey
         });
         
-        console.log('Push notification subscription created:', subscription);
+        console.log('Push subscription created successfully');
+        await validatePushSubscription(subscription);
       } catch (error) {
         console.error('Error subscribing to push notifications:', error);
+        console.groupEnd();
         return { 
           success: false, 
           status: 'subscribe_failed',
@@ -190,6 +224,7 @@ const initializeNotifications = async () => {
     }
   } catch (error) {
     console.error('Error managing push subscription:', error);
+    console.groupEnd();
     return { 
       success: false, 
       status: 'subscription_error',
@@ -203,6 +238,7 @@ const initializeNotifications = async () => {
     const success = await saveSubscription(subscription);
     if (success) {
       console.log('Subscription saved successfully');
+      console.groupEnd();
       return { 
         success: true, 
         status: 'complete',
@@ -210,6 +246,7 @@ const initializeNotifications = async () => {
       };
     } else {
       console.error('Failed to save subscription to server');
+      console.groupEnd();
       return { 
         success: false, 
         status: 'save_failed',
@@ -218,6 +255,7 @@ const initializeNotifications = async () => {
     }
   } catch (error) {
     console.error('Error saving subscription:', error);
+    console.groupEnd();
     return { 
       success: false, 
       status: 'save_error',
@@ -226,36 +264,70 @@ const initializeNotifications = async () => {
   }
 };
   
-  // Send notification when app is in background
-  const sendNotification = async (title, body, url) => {
-    try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      
-      if (!user || !user.token) {
-        console.error('User not authenticated');
-        return false;
-      }
-      
-      const response = await fetch('/api/notifications/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user.token}`
-        },
-        body: JSON.stringify({ title, body, url }),
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to send notification');
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Error sending notification:', error);
+// Enhance sendNotification function with better debugging
+const sendNotification = async (title, body, url) => {
+  try {
+    console.log('Sending notification:', { title, body, url });
+    
+    const user = JSON.parse(localStorage.getItem('user'));
+    
+    if (!user || !user.token) {
+      console.error('User not authenticated');
       return false;
     }
-  };
+    
+    // Check if notifications are supported and enabled
+    if (!areNotificationsSupported()) {
+      console.error('Notifications not supported in this browser');
+      return false;
+    }
+    
+    if (Notification.permission !== 'granted') {
+      console.error('Notification permission not granted');
+      return false;
+    }
+    
+    // Verify service worker is registered
+    const swRegistration = await navigator.serviceWorker.getRegistration();
+    if (!swRegistration) {
+      console.error('No service worker registration found');
+      return false;
+    }
+    console.log('Service worker status:', swRegistration.active ? 'active' : 'inactive');
+    
+    // Verify push subscription exists
+    const subscription = await swRegistration.pushManager.getSubscription();
+    const isValid = await validatePushSubscription(subscription);
+    if (!isValid) {
+      console.error('No valid push subscription found');
+      return false;
+    }
+    
+    console.log('Making API call to send notification');
+    const response = await fetch('/api/notifications/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user.token}`
+      },
+      body: JSON.stringify({ title, body, url }),
+      credentials: 'include'
+    });
+    
+    const data = await response.json();
+    console.log('Server response:', data);
+    
+    if (!response.ok) {
+      console.error('Server returned error:', data);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    return false;
+  }
+};
 
 // Check if notifications are supported
 const areNotificationsSupported = () => {
@@ -303,6 +375,45 @@ const showLocalNotification = (title, options = {}) => {
     return true;
   } catch (error) {
     console.error('Error showing notification:', error);
+    return false;
+  }
+};
+
+// Helper to check if a push subscription is valid and active
+const validatePushSubscription = async (subscription) => {
+  try {
+    if (!subscription) {
+      console.error('Subscription is null or undefined');
+      return false;
+    }
+    
+    console.log('Validating subscription:', subscription);
+    
+    // Check if it has the required properties
+    if (!subscription.endpoint) {
+      console.error('Subscription missing endpoint');
+      return false;
+    }
+    
+    if (!subscription.keys || !subscription.keys.p256dh || !subscription.keys.auth) {
+      console.error('Subscription missing required encryption keys');
+      return false;
+    }
+    
+    // Optionally try to get the subscription state if available
+    if (navigator.serviceWorker.controller && subscription.getKey) {
+      try {
+        const state = await subscription.getState();
+        console.log('Subscription state:', state);
+      } catch (err) {
+        // Not all browsers support getState()
+        console.log('getState not supported');
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error validating subscription:', error);
     return false;
   }
 };
