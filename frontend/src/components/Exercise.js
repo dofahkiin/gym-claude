@@ -1,5 +1,5 @@
-// Exercise.js updated with customizable rest timer
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// Exercise.js updated with improved background timer notifications
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { debounce } from 'lodash';
 import { Card, Button, Alert, ExerciseSet } from './ui';
@@ -22,7 +22,74 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(null);
 
+  // Add this ref to track visibility changes
+  const visibilityRef = useRef({
+    wasHidden: false,
+    timerKey: null
+  });
+
   const navigate = useNavigate();
+
+  // Add this useEffect to handle page visibility changes
+  useEffect(() => {
+    // Function to check if timer expired while in background
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && visibilityRef.current.wasHidden) {
+        visibilityRef.current.wasHidden = false;
+        
+        // Check if we have an active timer
+        if (exercise && exercise._id) {
+          const timerKey = `timer_${exercise._id}`;
+          const savedTimerStart = localStorage.getItem(timerKey);
+          
+          if (savedTimerStart) {
+            const startTime = parseInt(savedTimerStart);
+            const now = Date.now();
+            const elapsedSeconds = (now - startTime) / 1000;
+            
+            console.log('Visibility restored, checking timer:', {
+              elapsedSeconds,
+              restTime,
+              hasExpired: elapsedSeconds >= restTime
+            });
+            
+            // If timer should have expired while in background
+            if (elapsedSeconds >= restTime) {
+              // Clean up the timer
+              localStorage.removeItem(timerKey);
+              setTimerStartTime(null);
+              
+              // Send notification immediately
+              console.log('Timer expired while in background, sending notification');
+              sendNotification(
+                'Rest Time Complete',
+                `Time to start your next set of ${exercise.name}!`,
+                window.location.href
+              );
+            } else {
+              // Timer still running, update the state
+              setTimerStartTime(startTime);
+            }
+          }
+        }
+      } else if (document.visibilityState === 'hidden') {
+        // Mark that the page was hidden
+        visibilityRef.current.wasHidden = true;
+        
+        if (exercise && exercise._id) {
+          visibilityRef.current.timerKey = `timer_${exercise._id}`;
+        }
+      }
+    };
+    
+    // Add event listener for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [exercise, restTime]);
 
   // Fetch all exercises for this workout day
   useEffect(() => {
@@ -172,52 +239,54 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     }
   };
 
-  // Handle timer completion
+  // Handle timer completion - IMPROVED
   const handleTimerComplete = useCallback(() => {
     if (!exercise) return;
+    
+    // Clean up the timer
     setTimerStartTime(null);
     localStorage.removeItem(`timer_${exercise._id}`);
     
-    // Send notification if app is in background
-    if (document.visibilityState === 'hidden') {
-      sendNotification(
-        'Rest Time Complete',
-        `Time to start your next set of ${exercise.name}!`,
-        window.location.href
-      );
-    }
+    // Send notification for both foreground and background cases
+    console.log('Timer completed, sending notification. Visibility:', document.visibilityState);
+    
+    sendNotification(
+      'Rest Time Complete',
+      `Time to start your next set of ${exercise.name}!`,
+      window.location.href
+    );
   }, [exercise]);
 
-  // Then add this function alongside your other handler functions in Exercise.js
-const handleTestNotification = () => {
-  if (!exercise) return;
-  
-  sendNotification(
-    'Test Notification',
-    `This is a test notification for ${exercise.name}`,
-    window.location.href
-  ).then(success => {
-    if (success) {
-      alert('Test notification sent successfully! Check your notifications.');
-    } else {
-      alert('Failed to send test notification. Make sure notifications are enabled in your browser settings.');
-    }
-  });
-};
-
-  // Check timer expiration periodically
+  // Check timer expiration - IMPROVED
   useEffect(() => {
     if (!timerStartTime || !exercise) return;
 
+    const timerKey = `timer_${exercise._id}`;
+    
     const checkTimer = () => {
-      const elapsedSeconds = (Date.now() - timerStartTime) / 1000;
+      const now = Date.now();
+      const elapsedSeconds = (now - timerStartTime) / 1000;
+      
       if (elapsedSeconds >= restTime) {
+        console.log('Timer expired, handling completion');
         handleTimerComplete();
       }
     };
 
-    const intervalId = setInterval(checkTimer, 1000);
-    return () => clearInterval(intervalId);
+    // Check more frequently to ensure we don't miss the expiration
+    const intervalId = setInterval(checkTimer, 500);
+    
+    // Also set up a backup absolute timeout as a fallback
+    const timeRemaining = Math.max(0, (restTime * 1000) - (Date.now() - timerStartTime));
+    const backupTimeoutId = setTimeout(() => {
+      console.log('Backup timeout triggered for timer completion');
+      handleTimerComplete();
+    }, timeRemaining + 1000); // Add a small buffer
+    
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(backupTimeoutId);
+    };
   }, [timerStartTime, exercise, handleTimerComplete, restTime]);
 
   // Calculate if timer should be shown
@@ -274,7 +343,7 @@ const handleTestNotification = () => {
     }
   }, []);
 
-  // Handle set completion
+  // Handle set completion - IMPROVED
   const handleSetCompletion = useCallback(async (setIndex) => {
     if (!isWorkoutActive || !exercise) return;
     
@@ -282,11 +351,25 @@ const handleTestNotification = () => {
       const updatedSets = exercise.sets.map((set, index) => {
         if (index === setIndex) {
           const newCompleted = !set.completed;
+          
           if (newCompleted) {
+            // Start the timer when a set is marked complete
             const startTime = Date.now();
+            
+            // Update state
             setTimerStartTime(startTime);
+            
+            // Store in localStorage for persistence across page refreshes/visibility changes
             localStorage.setItem(`timer_${exercise._id}`, startTime.toString());
+            
+            console.log('Timer started:', {
+              exerciseId: exercise._id,
+              setIndex,
+              startTime,
+              restTime
+            });
           }
+          
           return { ...set, completed: newCompleted };
         }
         return set;
@@ -298,7 +381,7 @@ const handleTestNotification = () => {
       console.error('Set completion error:', err);
       setError(err.message);
     }
-  }, [exercise, isWorkoutActive, updateExerciseData]);
+  }, [exercise, isWorkoutActive, updateExerciseData, restTime]);
 
   // Handle set addition
   const handleAddSet = async () => {
@@ -440,6 +523,23 @@ const handleTestNotification = () => {
     debouncedUpdate(exercise._id, updatedSets);
   }, [exercise, debouncedUpdate]);
 
+  // Then add this function alongside your other handler functions in Exercise.js
+  const handleTestNotification = () => {
+    if (!exercise) return;
+    
+    sendNotification(
+      'Test Notification',
+      `This is a test notification for ${exercise.name}`,
+      window.location.href
+    ).then(success => {
+      if (success) {
+        alert('Test notification sent successfully! Check your notifications.');
+      } else {
+        alert('Failed to send test notification. Make sure notifications are enabled in your browser settings.');
+      }
+    });
+  };
+
   if (error) return <Alert type="error">Error: {error}</Alert>;
   
   // IMPORTANT CHANGE: Instead of showing a loading state, maintain the previous exercise
@@ -514,20 +614,20 @@ const handleTestNotification = () => {
             />
           </div>
 
-{/* Add the test notification button below the progress bar */}
-<div className="mt-3 flex justify-end">
-    <Button
-      onClick={handleTestNotification}
-      variant="secondary"
-      size="sm"
-      className="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 flex items-center space-x-1"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-      </svg>
-      <span>Test Notification</span>
-    </Button>
-  </div>
+          {/* Add the test notification button below the progress bar */}
+          <div className="mt-3 flex justify-end">
+            <Button
+              onClick={handleTestNotification}
+              variant="secondary"
+              size="sm"
+              className="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 flex items-center space-x-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+              </svg>
+              <span>Test Notification</span>
+            </Button>
+          </div>
 
         </div>
       </Card>
