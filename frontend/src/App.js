@@ -13,7 +13,11 @@ import { initializeNotifications } from './utils/notificationService';
 
 const App = () => {
   const [user, setUser] = useState(null);
-  const [isWorkoutActive, setIsWorkoutActive] = useState(false);
+  const [isWorkoutActive, setIsWorkoutActive] = useState(() => {
+    // Initialize from localStorage or default to false
+    const savedWorkoutState = localStorage.getItem('isWorkoutActive');
+    return savedWorkoutState === 'true';
+  });
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
 

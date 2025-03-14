@@ -115,7 +115,11 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
         return; // Don't set workout to inactive if saving failed
       }
     }
-    setIsWorkoutActive(!isWorkoutActive);
+    
+    // Update the state and save to localStorage
+    const newWorkoutActiveState = !isWorkoutActive;
+    setIsWorkoutActive(newWorkoutActiveState);
+    localStorage.setItem('isWorkoutActive', newWorkoutActiveState.toString());
   };
 
   // Toggle edit mode for workouts
