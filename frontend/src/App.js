@@ -113,15 +113,17 @@ const App = () => {
         <header className="main-header">
           <div className="container mx-auto px-4 py-4">
             <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
-                  <path d="M5 8h1a4 4 0 0 1 0 8H5"></path>
-                  <path d="M2 8h2v8H2z"></path>
-                  <path d="M20 8h2v8h-2z"></path>
-                  <path d="M7 12h10"></path>
-                </svg>
-                <Link to="/" className="text-xl font-bold tracking-tight">GymTracker</Link>
+            <div className="flex items-center space-x-2">
+                <Link to="/" className="flex items-center space-x-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                    <path d="M5 8h1a4 4 0 0 1 0 8H5"></path>
+                    <path d="M2 8h2v8H2z"></path>
+                    <path d="M20 8h2v8h-2z"></path>
+                    <path d="M7 12h10"></path>
+                  </svg>
+                  <span className="text-xl font-bold tracking-tight">GymTracker</span>
+                </Link>
               </div>
               <div className="flex items-center space-x-4">
                 {/* Replace ThemeToggle with Settings button */}
