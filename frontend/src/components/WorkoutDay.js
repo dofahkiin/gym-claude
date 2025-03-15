@@ -1,9 +1,10 @@
-// Updated WorkoutDay.js with exercise completion indicator
+// Updated WorkoutDay.js with local storage exercise completion check
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Alert, Input } from './ui';
 import commonExercises from '../data/commonExercises.json';
 import workoutPrograms from '../data/workoutPrograms';
+import { getExerciseFromLocalStorage } from '../utils/offlineWorkoutStorage';
 
 const WorkoutDay = ({ darkMode }) => {
   const { day } = useParams();
@@ -99,11 +100,18 @@ const WorkoutDay = ({ darkMode }) => {
     }
   }, [isAddingExercise]);
 
-  // NEW: Function to check if all sets in an exercise are completed
+  // Function to check if all sets in an exercise are completed
+  // UPDATED to also check localStorage for more up-to-date info
   const isExerciseCompleted = (exercise) => {
-    return exercise.sets && 
-           exercise.sets.length > 0 && 
-           exercise.sets.every(set => set.completed);
+    // First check if we have a locally stored version of this exercise
+    const localExercise = getExerciseFromLocalStorage(exercise._id);
+    
+    // Use the local version if available, otherwise use the server version
+    const exerciseToCheck = localExercise || exercise;
+    
+    return exerciseToCheck.sets && 
+           exerciseToCheck.sets.length > 0 && 
+           exerciseToCheck.sets.every(set => set.completed);
   };
 
   // Handle exercise selection
