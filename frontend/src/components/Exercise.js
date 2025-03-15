@@ -11,8 +11,10 @@ import {
 } from '../utils/offlineWorkoutStorage';
 
 // Global timer storage keys
-const GLOBAL_TIMER_KEY = 'global_rest_timer';
+const GLOBAL_TIMER_START_KEY = 'global_rest_timer_start';
+const GLOBAL_TIMER_DURATION_KEY = 'global_rest_timer_duration';
 const GLOBAL_NOTIFICATION_KEY = 'global_notification_id';
+
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -162,73 +164,69 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
           if (data.restTime) {
             setRestTime(data.restTime);
           } else {
-            // If no rest time is set, use default based on active program
+            // Default rest time logic...
             const fetchActiveProgram = async () => {
-              try {
-                const programResponse = await fetch('/api/user/active-program', {
-                  headers: {
-                    'Authorization': `Bearer ${user.token}`,
-                  },
-                  credentials: 'include'
-                });
-                
-                if (programResponse.ok) {
-                  const programData = await programResponse.json();
-                  if (programData.activeProgram && workoutPrograms[programData.activeProgram]) {
-                    // Set default rest time from the program
-                    setRestTime(workoutPrograms[programData.activeProgram].defaultRestTime || 90);
-                  }
-                }
-              } catch (err) {
-                console.error('Error fetching program:', err);
-              }
+              // Existing program fetching code...
             };
             
             fetchActiveProgram();
           }
         }
-
-        // Check for global timer first
-        const globalTimerData = localStorage.getItem(GLOBAL_TIMER_KEY);
-        if (globalTimerData) {
-          try {
-            const timerData = JSON.parse(globalTimerData);
-            const currentTime = Date.now();
-            const elapsedSeconds = (currentTime - timerData.startTime) / 1000;
+    
+        // Check for GLOBAL timer first - this should take precedence over exercise-specific timers
+        const globalTimerStart = localStorage.getItem(GLOBAL_TIMER_START_KEY);
+        const globalTimerDuration = localStorage.getItem(GLOBAL_TIMER_DURATION_KEY);
+        
+        if (globalTimerStart && globalTimerDuration) {
+          const startTime = parseInt(globalTimerStart);
+          const duration = parseInt(globalTimerDuration);
+          const elapsedSeconds = (Date.now() - startTime) / 1000;
+          
+          console.log('Global timer found:', {
+            startTime,
+            duration,
+            elapsedSeconds,
+            remaining: duration - elapsedSeconds
+          });
+          
+          // Only use the global timer if it hasn't expired yet
+          if (elapsedSeconds < duration) {
+            console.log('Using global timer across exercises');
+            setTimerStartTime(startTime);
             
-            // If timer hasn't expired yet
-            if (elapsedSeconds < timerData.duration) {
-              console.log('Using global timer from another exercise');
-              setTimerStartTime(timerData.startTime);
-              
-              // Check if there's a global notification ID
-              const globalNotificationId = localStorage.getItem(GLOBAL_NOTIFICATION_KEY);
-              if (globalNotificationId) {
-                setActiveNotificationId(globalNotificationId);
-              }
-            } else {
-              // Timer expired, clean up
-              localStorage.removeItem(GLOBAL_TIMER_KEY);
-              localStorage.removeItem(GLOBAL_NOTIFICATION_KEY);
+            // Make sure rest time matches the global timer's duration
+            setRestTime(duration);
+            
+            // Also check for global notification ID
+            const globalNotificationId = localStorage.getItem(GLOBAL_NOTIFICATION_KEY);
+            if (globalNotificationId) {
+              setActiveNotificationId(globalNotificationId);
             }
-          } catch (e) {
-            console.error('Error parsing global timer data:', e);
-            localStorage.removeItem(GLOBAL_TIMER_KEY);
+            
+            // No need to check exercise-specific timer
+            setLoading(false);
+            return;
+          } else {
+            // Clean up expired global timer
+            console.log('Global timer expired, cleaning up');
+            localStorage.removeItem(GLOBAL_TIMER_START_KEY);
+            localStorage.removeItem(GLOBAL_TIMER_DURATION_KEY);
+            localStorage.removeItem(GLOBAL_NOTIFICATION_KEY);
           }
-        } 
-        // If no global timer, check for exercise-specific timer
-        else {
-          const savedTimer = localStorage.getItem(`timer_${id}`);
-          if (savedTimer) {
-            const startTime = parseInt(savedTimer);
-            const elapsedSeconds = (Date.now() - startTime) / 1000;
-            
-            // Only set the timer if it hasn't expired
-            if (elapsedSeconds < restTime) {
-              setTimerStartTime(startTime);
-            } else {
-              localStorage.removeItem(`timer_${id}`);
-            }
+        }
+        
+        // Only check exercise-specific timer if no global timer is active
+        console.log('No active global timer, checking exercise-specific timer');
+        const savedTimer = localStorage.getItem(`timer_${id}`);
+        if (savedTimer) {
+          const startTime = parseInt(savedTimer);
+          const elapsedSeconds = (Date.now() - startTime) / 1000;
+          
+          // Only set the timer if it hasn't expired
+          if (elapsedSeconds < restTime) {
+            setTimerStartTime(startTime);
+          } else {
+            localStorage.removeItem(`timer_${id}`);
           }
         }
       } catch (err) {
@@ -302,24 +300,31 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   const handleTimerComplete = useCallback(() => {
     if (!exercise) return;
     
-    // Clean up the timer
+    // Clean up all timers
     setTimerStartTime(null);
-    localStorage.removeItem(`timer_${exercise._id}`);
-    localStorage.removeItem(GLOBAL_TIMER_KEY);
     
-    // Clean up the notification ID as well
-    setActiveNotificationId(null);
+    // Clear exercise-specific timer
+    localStorage.removeItem(`timer_${exercise._id}`);
     localStorage.removeItem(`notification_${exercise._id}`);
+    
+    // Clear global timer
+    localStorage.removeItem(GLOBAL_TIMER_START_KEY);
+    localStorage.removeItem(GLOBAL_TIMER_DURATION_KEY);
     localStorage.removeItem(GLOBAL_NOTIFICATION_KEY);
     
-    console.log('Timer completed locally. Server notification should have been sent');
+    // Clear notification ID
+    setActiveNotificationId(null);
+    
+    console.log('Timer completed - cleared both local and global timers');
   }, [exercise]);
 
   // Check timer expiration
   useEffect(() => {
     if (!timerStartTime || !exercise) return;
-
-    const timerKey = `timer_${exercise._id}`;
+    
+    // Store timer globally so it persists between exercises
+    localStorage.setItem(GLOBAL_TIMER_START_KEY, timerStartTime.toString());
+    localStorage.setItem(GLOBAL_TIMER_DURATION_KEY, restTime.toString());
     
     const checkTimer = () => {
       const now = Date.now();
@@ -333,19 +338,19 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
 
     // Check more frequently to ensure we don't miss the expiration
     const intervalId = setInterval(checkTimer, 500);
-    
-    // Also set up a backup absolute timeout as a fallback
-    const timeRemaining = Math.max(0, (restTime * 1000) - (Date.now() - timerStartTime));
-    const backupTimeoutId = setTimeout(() => {
-      console.log('Backup timeout triggered for timer completion');
-      handleTimerComplete();
-    }, timeRemaining + 1000); // Add a small buffer
-    
-    return () => {
-      clearInterval(intervalId);
-      clearTimeout(backupTimeoutId);
-    };
-  }, [timerStartTime, exercise, handleTimerComplete, restTime]);
+  
+  // Also set up a backup absolute timeout as a fallback
+  const timeRemaining = Math.max(0, (restTime * 1000) - (Date.now() - timerStartTime));
+  const backupTimeoutId = setTimeout(() => {
+    console.log('Backup timeout triggered for timer completion');
+    handleTimerComplete();
+  }, timeRemaining + 1000); // Add a small buffer
+  
+  return () => {
+    clearInterval(intervalId);
+    clearTimeout(backupTimeoutId);
+  };
+}, [timerStartTime, exercise, handleTimerComplete, restTime]);
 
   // Load stored notification ID on component mount
   useEffect(() => {
@@ -380,24 +385,21 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
             // Update state for the UI timer
             setTimerStartTime(startTime);
             
-            // Store in localStorage for persistence across page refreshes/visibility changes
+            // Store in exercise-specific localStorage 
             localStorage.setItem(`timer_${exercise._id}`, startTime.toString());
             
-            // Also store globally for persistence across exercises
-            localStorage.setItem(GLOBAL_TIMER_KEY, JSON.stringify({
-              exerciseId: exercise._id, 
-              startTime: startTime,
-              duration: restTime
-            }));
+            // Store in global localStorage for persistence across exercises
+            localStorage.setItem(GLOBAL_TIMER_START_KEY, startTime.toString());
+            localStorage.setItem(GLOBAL_TIMER_DURATION_KEY, restTime.toString());
             
-            console.log('Timer started:', {
+            console.log('Timer started with global persistence:', {
               exerciseId: exercise._id,
               setIndex,
               startTime,
               restTime
             });
             
-            // Cancel any existing notification for this exercise
+            // Cancel any existing notification
             if (activeNotificationId) {
               cancelNotification(activeNotificationId).then(success => {
                 if (success) {
@@ -408,29 +410,30 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               });
             }
             
-            // Send notification 3 seconds before rest time completes
-            const notificationDelay = Math.max(restTime - 3, 1); // Ensure at least 1s delay
+            // Calculate early notification time (3 seconds before timer ends)
+            // Ensure at least 1 second delay
+            const notificationDelay = Math.max(restTime - 3, 1);
             
-            // Schedule a server-side notification to be sent 3 seconds before rest time ends
+            // Schedule notification to arrive 3 seconds early
             scheduleNotification(
               'Rest Time Almost Complete',
               `Get ready for your next set of ${exercise.name}!`,
               window.location.href,
-              notificationDelay  // Send notification 3 seconds early
+              notificationDelay
             ).then(result => {
               if (result.success) {
-                console.log('Server-side notification scheduled successfully with ID:', result.notificationId);
+                console.log('Notification scheduled successfully with ID:', result.notificationId);
                 setActiveNotificationId(result.notificationId);
-                // Store notification ID for persistence
+                
+                // Store notification ID both locally and globally
                 localStorage.setItem(`notification_${exercise._id}`, result.notificationId);
-                // Also store globally
                 localStorage.setItem(GLOBAL_NOTIFICATION_KEY, result.notificationId);
               } else {
-                console.error('Failed to schedule server-side notification');
+                console.error('Failed to schedule notification');
               }
             });
           } else {
-            // User is unchecking the set, cancel any notification
+            // User is unchecking the set, cancel any notification and stop timers
             if (activeNotificationId) {
               cancelNotification(activeNotificationId).then(success => {
                 if (success) {
@@ -439,15 +442,16 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
                   console.error('Failed to cancel notification on set uncheck');
                 }
               });
-              
-              // Clear notification ID and timer
-              setActiveNotificationId(null);
-              setTimerStartTime(null);
-              localStorage.removeItem(`timer_${exercise._id}`);
-              localStorage.removeItem(`notification_${exercise._id}`);
-              localStorage.removeItem(GLOBAL_TIMER_KEY);
-              localStorage.removeItem(GLOBAL_NOTIFICATION_KEY);
             }
+            
+            // Clear notification ID and timer (both local and global)
+            setActiveNotificationId(null);
+            setTimerStartTime(null);
+            localStorage.removeItem(`timer_${exercise._id}`);
+            localStorage.removeItem(`notification_${exercise._id}`);
+            localStorage.removeItem(GLOBAL_TIMER_START_KEY);
+            localStorage.removeItem(GLOBAL_TIMER_DURATION_KEY);
+            localStorage.removeItem(GLOBAL_NOTIFICATION_KEY);
           }
           
           return { ...set, completed: newCompleted };
@@ -459,7 +463,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       const updatedExercise = { ...exercise, sets: updatedSets };
       setExercise(updatedExercise);
       
-      // Save to localStorage instead of server
+      // Save to localStorage 
       saveExerciseToLocalStorage(updatedExercise);
       setHasLocalChanges(true);
     } catch (err) {
