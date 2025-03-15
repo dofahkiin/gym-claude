@@ -591,11 +591,6 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
           </div>
           <div className="flex items-center text-indigo-100 text-sm">
             <span>{completedSets} of {exercise.sets.length} sets completed</span>
-            {hasLocalChanges && (
-              <span className="ml-2 bg-yellow-500/30 text-white text-xs px-2 py-0.5 rounded-full">
-                Saved locally
-              </span>
-            )}
           </div>
         </div>
         
@@ -644,20 +639,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
         </div>
       </Card>
 
-      {/* Modified Indicator Banner */}
-      {hasLocalChanges && !showTimer && (
-        <Alert type="info" className="mb-6">
-          <div className="flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div>
-              <span className="font-medium">Your changes are saved locally</span>
-              <span className="ml-2 text-sm">They will be synced when you end your workout</span>
-            </div>
-          </div>
-        </Alert>
-      )}
+
 
       {/* Rest Timer - show prominently if active */}
       {showTimer && (

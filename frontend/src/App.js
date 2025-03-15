@@ -171,9 +171,9 @@ const App = () => {
                   </span>
                 )}
                 {isOnline && hasLocalChanges && isWorkoutActive && (
-                  <span className="bg-yellow-500/30 text-white text-xs px-2 py-0.5 rounded-full">
-                    Unsaved changes
-                  </span>
+                  <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 4">
+                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+                  </svg>
                 )}
               </div>
               <div className="flex items-center space-x-4">
