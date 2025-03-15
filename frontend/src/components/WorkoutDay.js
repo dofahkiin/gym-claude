@@ -1,4 +1,4 @@
-// Updated WorkoutDay.js - Fixing the program display issue
+// Updated WorkoutDay.js with exercise completion indicator
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Alert, Input } from './ui';
@@ -98,6 +98,13 @@ const WorkoutDay = ({ darkMode }) => {
       searchInputRef.current.focus();
     }
   }, [isAddingExercise]);
+
+  // NEW: Function to check if all sets in an exercise are completed
+  const isExerciseCompleted = (exercise) => {
+    return exercise.sets && 
+           exercise.sets.length > 0 && 
+           exercise.sets.every(set => set.completed);
+  };
 
   // Handle exercise selection
   const handleExerciseClick = (exerciseId) => {
@@ -283,7 +290,11 @@ const WorkoutDay = ({ darkMode }) => {
           <Card 
             key={exercise._id}
             className={`relative cursor-pointer hover:shadow-md dark:shadow-gray-900/30 transition-shadow duration-200 ${
-              editMode ? 'border-l-4 border-indigo-500 dark:border-indigo-400' : ''
+              editMode 
+                ? 'border-l-4 border-indigo-500 dark:border-indigo-400' 
+                : isExerciseCompleted(exercise)
+                  ? 'border-l-4 border-green-500 dark:border-green-400'
+                  : ''
             }`}
             onClick={() => !editMode && handleExerciseClick(exercise._id)}
           >
@@ -298,6 +309,12 @@ const WorkoutDay = ({ darkMode }) => {
                     <span>{exercise.sets.length} sets</span>
                     <span className="mx-2">•</span>
                     <span>{exercise.sets[0].reps} reps per set</span>
+                    {isExerciseCompleted(exercise) && (
+                      <>
+                        <span className="mx-2">•</span>
+                        <span className="text-green-600 dark:text-green-400 font-medium">Completed</span>
+                      </>
+                    )}
                   </div>
                 </div>
                 {editMode ? (
