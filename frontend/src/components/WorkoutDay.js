@@ -1,4 +1,4 @@
-// Updated WorkoutDay.js with local storage exercise completion check
+// Updated WorkoutDay.js - removed "Completed" text
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Alert, Input } from './ui';
@@ -317,12 +317,6 @@ const WorkoutDay = ({ darkMode }) => {
                     <span>{exercise.sets.length} sets</span>
                     <span className="mx-2">•</span>
                     <span>{exercise.sets[0].reps} reps per set</span>
-                    {isExerciseCompleted(exercise) && (
-                      <>
-                        <span className="mx-2">•</span>
-                        <span className="text-green-600 dark:text-green-400 font-medium">Completed</span>
-                      </>
-                    )}
                   </div>
                 </div>
                 {editMode ? (
