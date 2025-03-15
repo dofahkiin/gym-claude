@@ -6,7 +6,6 @@ import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 import workoutPrograms from '../data/workoutPrograms';
 import { sendNotification, scheduleNotification } from '../utils/notificationService';
-import NotificationHelper from './NotificationHelper';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -637,8 +636,6 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
 
         </div>
       </Card>
-
-      <NotificationHelper />
 
       {/* Rest Timer - show prominently if active */}
       {showTimer && (

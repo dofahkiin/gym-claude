@@ -11,8 +11,6 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [showProgramSelector, setShowProgramSelector] = useState(false);
-  const [activeProgram, setActiveProgram] = useState(null);
   const [programWorkoutNames, setProgramWorkoutNames] = useState({});
 
   // Fetch workouts and active program on component mount
@@ -34,7 +32,6 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
       
       if (response.ok) {
         const data = await response.json();
-        setActiveProgram(data.activeProgram);
         
         // If we have an active program, create a mapping of day numbers to workout names
         if (data.activeProgram && workoutPrograms[data.activeProgram]) {
@@ -125,66 +122,6 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   // Toggle edit mode for workouts
   const toggleEditMode = () => {
     setEditMode(!editMode);
-  };
-
-  // Toggle program selector visibility
-  const toggleProgramSelector = () => {
-    setShowProgramSelector(!showProgramSelector);
-  };
-
-  // Handle program selection
-  const handleSelectProgram = async (programId) => {
-    try {
-      setActionLoading(true);
-      
-      // Get the selected program data
-      const program = workoutPrograms[programId];
-      if (!program) {
-        throw new Error('Invalid program selected');
-      }
-      
-      const user = JSON.parse(localStorage.getItem('user'));
-      
-      // Use the new API endpoint to apply the program while preserving history
-      const response = await fetch('/api/workouts/apply-program', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          program,
-          programId 
-        }),
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to apply program');
-      }
-      
-      // Refresh workouts after changes
-      await fetchWorkouts();
-      
-      // Update active program
-      setActiveProgram(programId);
-      
-      // Update workout names mapping
-      const workoutNameMap = {};
-      program.workouts.forEach(workout => {
-        workoutNameMap[workout.day] = workout.name;
-      });
-      setProgramWorkoutNames(workoutNameMap);
-      
-      showNotification(`Successfully switched to ${program.name} program`);
-      setShowProgramSelector(false);
-    } catch (error) {
-      console.error('Error applying program:', error);
-      showNotification(`Failed to apply program: ${error.message}`, 'error');
-    } finally {
-      setActionLoading(false);
-    }
   };
 
   // Add a new workout day
@@ -348,62 +285,6 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
           </div>
         }
       />
-
-      {/* Active Program Card */}
-      {activeProgram && workoutPrograms[activeProgram] && (
-        <Card className="mb-6">
-          <div className="px-6 py-4 flex items-center justify-between">
-            <div>
-              <div className="flex items-center mb-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-indigo-600 dark:text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
-                </svg>
-                <h3 className="font-bold text-gray-800 dark:text-gray-100">
-                  Active Program: <span className="text-indigo-600 dark:text-indigo-400">{workoutPrograms[activeProgram].name}</span>
-                </h3>
-              </div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm ml-7">
-                {workoutPrograms[activeProgram].description}
-              </p>
-            </div>
-            <Button
-              onClick={toggleProgramSelector}
-              variant="secondary"
-              size="sm"
-              className="flex items-center space-x-1"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-              </svg>
-              <span>Change</span>
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Program Selector Toggle Button */}
-      {(!activeProgram || !workoutPrograms[activeProgram]) && (
-        <div className="mb-6 flex justify-center">
-          <Button
-            onClick={toggleProgramSelector}
-            variant="secondary"
-            className="flex items-center space-x-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
-            </svg>
-            <span>{showProgramSelector ? 'Hide Programs' : 'Choose Workout Program'}</span>
-          </Button>
-        </div>
-      )}
-
-      {/* Program Selector */}
-      {showProgramSelector && (
-        <ProgramSelector 
-          onSelectProgram={handleSelectProgram} 
-          darkMode={darkMode}
-        />
-      )}
       
       {/* Workouts Header with Edit Button */}
       <div className="flex justify-between items-center mb-4">
