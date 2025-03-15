@@ -550,18 +550,18 @@ const scheduleNotification = async (title, body, url, delaySeconds) => {
     
     if (!user || !user.token) {
       console.error('User not authenticated');
-      return false;
+      return { success: false };
     }
     
     // Check if notifications are supported and enabled
     if (!areNotificationsSupported()) {
       console.error('Notifications not supported in this browser');
-      return false;
+      return { success: false };
     }
     
     if (Notification.permission !== 'granted') {
       console.error('Notification permission not granted');
-      return false;
+      return { success: false };
     }
     
     // Send scheduling request to server
@@ -585,12 +585,57 @@ const scheduleNotification = async (title, body, url, delaySeconds) => {
     
     if (!response.ok) {
       console.error('Server returned error:', responseData);
+      return { success: false };
+    }
+    
+    return { 
+      success: true,
+      notificationId: responseData.notificationId  // Return the notification ID
+    };
+  } catch (error) {
+    console.error('Error scheduling notification:', error);
+    return { success: false };
+  }
+};
+
+const cancelNotification = async (notificationId) => {
+  try {
+    if (!notificationId) {
+      console.error('No notification ID provided');
+      return false;
+    }
+    
+    console.log('Canceling notification:', notificationId);
+    
+    const user = JSON.parse(localStorage.getItem('user'));
+    
+    if (!user || !user.token) {
+      console.error('User not authenticated');
+      return false;
+    }
+    
+    // Send cancellation request to server
+    const response = await fetch('/api/notifications/cancel', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user.token}`
+      },
+      body: JSON.stringify({ notificationId }),
+      credentials: 'include'
+    });
+    
+    const responseData = await response.json();
+    console.log('Server cancellation response:', responseData);
+    
+    if (!response.ok) {
+      console.error('Server returned error:', responseData);
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error('Error scheduling notification:', error);
+    console.error('Error canceling notification:', error);
     return false;
   }
 };
@@ -606,5 +651,6 @@ export {
   areNotificationsSupported,
   showLocalNotification,
   debugNotificationSystem,
-  scheduleNotification  // Add this line
+  scheduleNotification,
+  cancelNotification 
 };

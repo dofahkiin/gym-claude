@@ -5,7 +5,7 @@ import { debounce } from 'lodash';
 import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 import workoutPrograms from '../data/workoutPrograms';
-import { sendNotification, scheduleNotification } from '../utils/notificationService';
+import { sendNotification, scheduleNotification, cancelNotification } from '../utils/notificationService';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -17,6 +17,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [restTime, setRestTime] = useState(90); // Default to 90 seconds
+  const [activeNotificationId, setActiveNotificationId] = useState(null);
   
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(null);
@@ -241,11 +242,11 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     setTimerStartTime(null);
     localStorage.removeItem(`timer_${exercise._id}`);
     
-    // We're now relying on server-side notifications, so no need to send one here
-    console.log('Timer completed locally. Server will send the notification.');
+    // Clean up the notification ID as well
+    setActiveNotificationId(null);
+    localStorage.removeItem(`notification_${exercise._id}`);
     
-    // But if the app is active (in foreground), we could still show a UI notification
-    // or play a sound if desired
+    console.log('Timer completed locally. Server notification should have been sent');
   }, [exercise]);
 
   // Check timer expiration - IMPROVED
@@ -279,6 +280,16 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       clearTimeout(backupTimeoutId);
     };
   }, [timerStartTime, exercise, handleTimerComplete, restTime]);
+
+// Load stored notification ID on component mount
+useEffect(() => {
+  if (exercise && exercise._id) {
+    const storedNotificationId = localStorage.getItem(`notification_${exercise._id}`);
+    if (storedNotificationId) {
+      setActiveNotificationId(storedNotificationId);
+    }
+  }
+}, [exercise]);
 
   // Calculate if timer should be shown
   const showTimer = useMemo(() => {
@@ -360,19 +371,50 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               restTime
             });
             
+            // Cancel any existing notification for this exercise
+            if (activeNotificationId) {
+              cancelNotification(activeNotificationId).then(success => {
+                if (success) {
+                  console.log('Previous notification canceled successfully');
+                } else {
+                  console.error('Failed to cancel previous notification');
+                }
+              });
+            }
+            
             // Schedule a server-side notification to be sent after the rest time
             scheduleNotification(
               'Rest Time Complete',
               `Time to start your next set of ${exercise.name}!`,
               window.location.href,
               restTime  // delay in seconds
-            ).then(success => {
-              if (success) {
-                console.log('Server-side notification scheduled successfully');
+            ).then(result => {
+              if (result.success) {
+                console.log('Server-side notification scheduled successfully with ID:', result.notificationId);
+                setActiveNotificationId(result.notificationId);
+                // Store notification ID for persistence
+                localStorage.setItem(`notification_${exercise._id}`, result.notificationId);
               } else {
                 console.error('Failed to schedule server-side notification');
               }
             });
+          } else {
+            // User is unchecking the set, cancel any notification
+            if (activeNotificationId) {
+              cancelNotification(activeNotificationId).then(success => {
+                if (success) {
+                  console.log('Notification canceled on set uncheck');
+                } else {
+                  console.error('Failed to cancel notification on set uncheck');
+                }
+              });
+              
+              // Clear notification ID and timer
+              setActiveNotificationId(null);
+              setTimerStartTime(null);
+              localStorage.removeItem(`timer_${exercise._id}`);
+              localStorage.removeItem(`notification_${exercise._id}`);
+            }
           }
           
           return { ...set, completed: newCompleted };
@@ -386,7 +428,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       console.error('Set completion error:', err);
       setError(err.message);
     }
-  }, [exercise, isWorkoutActive, updateExerciseData, restTime]);
+  }, [exercise, isWorkoutActive, updateExerciseData, restTime, activeNotificationId]);
 
   // Handle set addition
   const handleAddSet = async () => {

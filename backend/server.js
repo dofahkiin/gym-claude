@@ -997,12 +997,16 @@ app.post('/api/notifications/schedule', auth, async (req, res) => {
     // Schedule the notification to be sent after the specified delay
     const scheduledTime = Date.now() + (delaySeconds * 1000);
     
+    // Generate a unique notification ID
+    const notificationId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+    
     // Store scheduled notification in memory (in a production app, you would use a database)
     if (!global.scheduledNotifications) {
       global.scheduledNotifications = [];
     }
     
     global.scheduledNotifications.push({
+      id: notificationId,
       userId: user._id.toString(),
       subscriptions: user.pushSubscriptions,
       title, 
@@ -1018,7 +1022,8 @@ app.post('/api/notifications/schedule', auth, async (req, res) => {
     
     res.status(201).json({ 
       message: 'Notification scheduled successfully',
-      scheduledTime: new Date(scheduledTime).toISOString()
+      scheduledTime: new Date(scheduledTime).toISOString(),
+      notificationId: notificationId  // Return the ID to the client
     });
   } catch (error) {
     console.error('Error scheduling notification:', error);
@@ -1095,6 +1100,44 @@ async function processScheduledNotifications() {
     }
   }
 }
+
+// Add a new endpoint to cancel a scheduled notification
+app.post('/api/notifications/cancel', auth, async (req, res) => {
+  try {
+    const { notificationId } = req.body;
+    const user = req.user;
+    
+    console.log('Canceling notification:', notificationId);
+    
+    if (!notificationId) {
+      return res.status(400).json({ error: 'Notification ID is required' });
+    }
+    
+    if (!global.scheduledNotifications) {
+      return res.status(404).json({ error: 'No scheduled notifications found' });
+    }
+    
+    // Find the notification index
+    const notificationIndex = global.scheduledNotifications.findIndex(
+      notification => notification.id === notificationId && notification.userId === user._id.toString()
+    );
+    
+    if (notificationIndex === -1) {
+      return res.status(404).json({ error: 'Notification not found or already sent' });
+    }
+    
+    // Remove the notification from the array
+    global.scheduledNotifications.splice(notificationIndex, 1);
+    
+    res.json({ 
+      message: 'Notification canceled successfully',
+      notificationId
+    });
+  } catch (error) {
+    console.error('Error canceling notification:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
