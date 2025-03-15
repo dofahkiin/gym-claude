@@ -416,8 +416,8 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
             
             // Schedule notification to arrive 3 seconds early
             scheduleNotification(
-              'Rest Time Almost Complete',
-              `Get ready for your next set of ${exercise.name}!`,
+              'Timer',
+              `Done`,
               window.location.href,
               notificationDelay
             ).then(result => {
