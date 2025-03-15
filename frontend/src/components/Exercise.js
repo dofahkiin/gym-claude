@@ -1,11 +1,14 @@
-// Exercise.js updated with improved background timer notifications
+// Exercise.js - Updated to use localStorage first
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { debounce } from 'lodash';
 import { Card, Button, Alert, ExerciseSet } from './ui';
 import RestTimer from './RestTimer';
 import workoutPrograms from '../data/workoutPrograms';
 import { sendNotification, scheduleNotification, cancelNotification } from '../utils/notificationService';
+import { 
+  saveExerciseToLocalStorage, 
+  getExerciseFromLocalStorage
+} from '../utils/offlineWorkoutStorage';
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -18,6 +21,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   const [editMode, setEditMode] = useState(false);
   const [restTime, setRestTime] = useState(90); // Default to 90 seconds
   const [activeNotificationId, setActiveNotificationId] = useState(null);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
   
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(null);
@@ -119,52 +123,69 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     const fetchExerciseData = async () => {
       try {
         setLoading(true);
-        const user = JSON.parse(localStorage.getItem('user'));
-        const response = await fetch(`/api/exercises/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${user.token}`,
-          },
-          credentials: 'include'
-        });
         
-        if (!response.ok) {
-          throw new Error('Failed to fetch exercise data');
-        }
+        // First check localStorage for this exercise
+        const localExercise = getExerciseFromLocalStorage(id);
         
-        const data = await response.json();
-        setExercise(data);
-        
-        // Set rest time
-        if (data.restTime) {
-          setRestTime(data.restTime);
-        } else {
-          // If no rest time is set, use default based on active program
-          const fetchActiveProgram = async () => {
-            try {
-              const programResponse = await fetch('/api/user/active-program', {
-                headers: {
-                  'Authorization': `Bearer ${user.token}`,
-                },
-                credentials: 'include'
-              });
-              
-              if (programResponse.ok) {
-                const programData = await programResponse.json();
-                if (programData.activeProgram && workoutPrograms[programData.activeProgram]) {
-                  // Set default rest time from the program
-                  setRestTime(workoutPrograms[programData.activeProgram].defaultRestTime || 90);
-                }
-              }
-            } catch (err) {
-              console.error('Error fetching program:', err);
-            }
-          };
+        // If found in localStorage, use that data
+        if (localExercise) {
+          console.log('Using locally stored exercise data');
+          setExercise(localExercise);
+          setHasLocalChanges(true);
           
-          fetchActiveProgram();
+          // Set rest time from local data
+          if (localExercise.restTime) {
+            setRestTime(localExercise.restTime);
+          }
+        } else {
+          // Otherwise fetch from server
+          const user = JSON.parse(localStorage.getItem('user'));
+          const response = await fetch(`/api/exercises/${id}`, {
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+            },
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch exercise data');
+          }
+          
+          const data = await response.json();
+          setExercise(data);
+          
+          // Set rest time
+          if (data.restTime) {
+            setRestTime(data.restTime);
+          } else {
+            // If no rest time is set, use default based on active program
+            const fetchActiveProgram = async () => {
+              try {
+                const programResponse = await fetch('/api/user/active-program', {
+                  headers: {
+                    'Authorization': `Bearer ${user.token}`,
+                  },
+                  credentials: 'include'
+                });
+                
+                if (programResponse.ok) {
+                  const programData = await programResponse.json();
+                  if (programData.activeProgram && workoutPrograms[programData.activeProgram]) {
+                    // Set default rest time from the program
+                    setRestTime(workoutPrograms[programData.activeProgram].defaultRestTime || 90);
+                  }
+                }
+              } catch (err) {
+                console.error('Error fetching program:', err);
+              }
+            };
+            
+            fetchActiveProgram();
+          }
         }
 
         // Check for existing timer
-        const savedTimer = localStorage.getItem(`timer_${data._id}`);
+        const savedTimer = localStorage.getItem(`timer_${id}`);
         if (savedTimer) {
           const startTime = parseInt(savedTimer);
           const elapsedSeconds = (Date.now() - startTime) / 1000;
@@ -173,7 +194,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
           if (elapsedSeconds < restTime) {
             setTimerStartTime(startTime);
           } else {
-            localStorage.removeItem(`timer_${data._id}`);
+            localStorage.removeItem(`timer_${id}`);
           }
         }
       } catch (err) {
@@ -207,7 +228,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     }
   }, [currentIndex, exercises, navigate, day]);
 
-  // Update rest time
+  // Update rest time - Now saves to localStorage first
   const handleRestTimeChange = async (newDuration) => {
     try {
       if (!exercise) return;
@@ -215,7 +236,16 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       // Update local state immediately for responsive UI
       setRestTime(newDuration);
       
-      // Then update in database
+      // Create updated exercise data with new rest time
+      const updatedExercise = { ...exercise, restTime: newDuration };
+      
+      // Save to localStorage first
+      saveExerciseToLocalStorage(updatedExercise);
+      setExercise(updatedExercise);
+      setHasLocalChanges(true);
+      
+      // Also update on server since this is a one-time configuration change
+      // and doesn't affect workout history
       const user = JSON.parse(localStorage.getItem('user'));
       
       await fetch(`/api/exercises/${exercise._id}/rest-time`, {
@@ -230,11 +260,11 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       
     } catch (err) {
       console.error('Failed to update rest time:', err);
-      setError('Failed to update rest time');
+      setError('Failed to update rest time, but changes are saved locally');
     }
   };
 
-  // Modify the handleTimerComplete function in Exercise.js to prevent duplicate notifications
+  // Handle timer completion
   const handleTimerComplete = useCallback(() => {
     if (!exercise) return;
     
@@ -249,7 +279,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     console.log('Timer completed locally. Server notification should have been sent');
   }, [exercise]);
 
-  // Check timer expiration - IMPROVED
+  // Check timer expiration
   useEffect(() => {
     if (!timerStartTime || !exercise) return;
 
@@ -281,15 +311,15 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     };
   }, [timerStartTime, exercise, handleTimerComplete, restTime]);
 
-// Load stored notification ID on component mount
-useEffect(() => {
-  if (exercise && exercise._id) {
-    const storedNotificationId = localStorage.getItem(`notification_${exercise._id}`);
-    if (storedNotificationId) {
-      setActiveNotificationId(storedNotificationId);
+  // Load stored notification ID on component mount
+  useEffect(() => {
+    if (exercise && exercise._id) {
+      const storedNotificationId = localStorage.getItem(`notification_${exercise._id}`);
+      if (storedNotificationId) {
+        setActiveNotificationId(storedNotificationId);
+      }
     }
-  }
-}, [exercise]);
+  }, [exercise]);
 
   // Calculate if timer should be shown
   const showTimer = useMemo(() => {
@@ -298,54 +328,7 @@ useEffect(() => {
     return elapsedSeconds < restTime;
   }, [timerStartTime, restTime]);
 
-  // Update exercise data
-  const updateExerciseData = useCallback(async (exerciseId, updatedData) => {
-    try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      
-      if (!exerciseId) {
-        throw new Error('No exercise ID provided');
-      }
-
-      const updateResponse = await fetch(`/api/exercises/${exerciseId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sets: updatedData.sets
-        }),
-        credentials: 'include'
-      });
-      
-      if (!updateResponse.ok) {
-        const errorData = await updateResponse.json();
-        throw new Error(`Failed to update exercise data: ${errorData.message || updateResponse.statusText}`);
-      }
-
-      const getResponse = await fetch(`/api/exercises/${exerciseId}`, {
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        credentials: 'include'
-      });
-
-      if (!getResponse.ok) {
-        throw new Error('Failed to fetch updated exercise data');
-      }
-
-      const data = await getResponse.json();
-      setExercise(data);
-      return data;
-    } catch (err) {
-      console.error('Update error:', err);
-      setError(err.message);
-      throw err;
-    }
-  }, []);
-
-  // Handle set completion - IMPROVED
+  // Handle set completion - MODIFIED to save to localStorage first
   const handleSetCompletion = useCallback(async (setIndex) => {
     if (!isWorkoutActive || !exercise) return;
     
@@ -422,13 +405,18 @@ useEffect(() => {
         return set;
       });
   
-      const updatedExercise = await updateExerciseData(exercise._id, { sets: updatedSets });
+      // Update local state
+      const updatedExercise = { ...exercise, sets: updatedSets };
       setExercise(updatedExercise);
+      
+      // Save to localStorage instead of server
+      saveExerciseToLocalStorage(updatedExercise);
+      setHasLocalChanges(true);
     } catch (err) {
       console.error('Set completion error:', err);
       setError(err.message);
     }
-  }, [exercise, isWorkoutActive, updateExerciseData, restTime, activeNotificationId]);
+  }, [exercise, isWorkoutActive, restTime, activeNotificationId]);
 
   // Handle set addition
   const handleAddSet = async () => {
@@ -473,6 +461,9 @@ useEffect(() => {
 
       const data = await getResponse.json();
       setExercise(data);
+      
+      // Also store in localStorage
+      saveExerciseToLocalStorage(data);
     } catch (err) {
       console.error('Add set error:', err);
       setError(err.message);
@@ -522,6 +513,9 @@ useEffect(() => {
 
       const data = await getResponse.json();
       setExercise(data);
+      
+      // Also store in localStorage
+      saveExerciseToLocalStorage(data);
     } catch (err) {
       console.error('Remove set error:', err);
       setError(err.message);
@@ -530,19 +524,7 @@ useEffect(() => {
     }
   };
 
-  // Add debounced update function
-  const debouncedUpdate = useCallback(
-    debounce(async (exerciseId, updatedSets) => {
-      try {
-        await updateExerciseData(exerciseId, { sets: updatedSets });
-      } catch (err) {
-        console.error('Failed to save exercise data:', err);
-      }
-    }, 500),
-    [updateExerciseData]
-  );
-
-  // Handle input changes
+  // Handle weight change - MODIFIED to save to localStorage first
   const handleWeightChange = useCallback((index, value) => {
     if (!exercise) return;
 
@@ -552,11 +534,16 @@ useEffect(() => {
         : set
     );
 
-    setExercise(prev => ({ ...prev, sets: updatedSets }));
-    debouncedUpdate(exercise._id, updatedSets);
-  }, [exercise, debouncedUpdate]);
+    // Update local state
+    const updatedExercise = { ...exercise, sets: updatedSets };
+    setExercise(updatedExercise);
+    
+    // Save to localStorage instead of server
+    saveExerciseToLocalStorage(updatedExercise);
+    setHasLocalChanges(true);
+  }, [exercise]);
 
-  // Handle reps change
+  // Handle reps change - MODIFIED to save to localStorage first
   const handleRepsChange = useCallback((index, value) => {
     if (!exercise) return;
 
@@ -566,9 +553,14 @@ useEffect(() => {
         : set
     );
 
-    setExercise(prev => ({ ...prev, sets: updatedSets }));
-    debouncedUpdate(exercise._id, updatedSets);
-  }, [exercise, debouncedUpdate]);
+    // Update local state 
+    const updatedExercise = { ...exercise, sets: updatedSets };
+    setExercise(updatedExercise);
+    
+    // Save to localStorage instead of server
+    saveExerciseToLocalStorage(updatedExercise);
+    setHasLocalChanges(true);
+  }, [exercise]);
 
   if (error) return <Alert type="error">Error: {error}</Alert>;
   
@@ -599,6 +591,11 @@ useEffect(() => {
           </div>
           <div className="flex items-center text-indigo-100 text-sm">
             <span>{completedSets} of {exercise.sets.length} sets completed</span>
+            {hasLocalChanges && (
+              <span className="ml-2 bg-yellow-500/30 text-white text-xs px-2 py-0.5 rounded-full">
+                Saved locally
+              </span>
+            )}
           </div>
         </div>
         
@@ -646,6 +643,21 @@ useEffect(() => {
 
         </div>
       </Card>
+
+      {/* Modified Indicator Banner */}
+      {hasLocalChanges && !showTimer && (
+        <Alert type="info" className="mb-6">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <span className="font-medium">Your changes are saved locally</span>
+              <span className="ml-2 text-sm">They will be synced when you end your workout</span>
+            </div>
+          </div>
+        </Alert>
+      )}
 
       {/* Rest Timer - show prominently if active */}
       {showTimer && (

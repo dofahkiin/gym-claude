@@ -1,4 +1,4 @@
-// App.js
+// Updated App.js with network status handling
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import Login from './components/Login';
@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import ExerciseHistory from './components/ExerciseHistory'; 
 import { initializeNotifications } from './utils/notificationService';
 import SettingsPage from './components/SettingsPage';
+import { getModifiedExerciseIds } from './utils/offlineWorkoutStorage';
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -21,6 +22,45 @@ const App = () => {
   });
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
+
+  // Check for local changes
+  useEffect(() => {
+    const checkLocalChanges = () => {
+      const modifiedExercises = getModifiedExerciseIds();
+      setHasLocalChanges(modifiedExercises.length > 0);
+    };
+    
+    // Check on mount
+    checkLocalChanges();
+    
+    // Setup periodic check
+    const intervalId = setInterval(checkLocalChanges, 10000); // Check every 10 seconds
+    
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Track network status
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('App is now online');
+      setIsOnline(true);
+    };
+    
+    const handleOffline = () => {
+      console.log('App is now offline');
+      setIsOnline(false);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     // Initialize dark mode preference from localStorage
@@ -113,7 +153,7 @@ const App = () => {
         <header className="main-header">
           <div className="container mx-auto px-4 py-4">
             <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
                 <Link to="/" className="flex items-center space-x-2">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
@@ -124,6 +164,17 @@ const App = () => {
                   </svg>
                   <span className="text-xl font-bold tracking-tight">GymTracker</span>
                 </Link>
+                {/* Network status indicator */}
+                {!isOnline && (
+                  <span className="bg-yellow-500/30 text-white text-xs px-2 py-0.5 rounded-full">
+                    Offline
+                  </span>
+                )}
+                {isOnline && hasLocalChanges && isWorkoutActive && (
+                  <span className="bg-yellow-500/30 text-white text-xs px-2 py-0.5 rounded-full">
+                    Unsaved changes
+                  </span>
+                )}
               </div>
               <div className="flex items-center space-x-4">
                 {/* Replace ThemeToggle with Settings button */}
@@ -158,6 +209,18 @@ const App = () => {
         </header>
 
         <main className="main-content">
+          {/* Show offline banner if needed */}
+          {!isOnline && (
+            <div className="bg-yellow-500 text-white px-4 py-2 mb-4 rounded-md shadow-md">
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <p>You're currently offline. Changes will be saved locally and synced when you're back online.</p>
+              </div>
+            </div>
+          )}
+          
           <Routes>
             <Route path="/login" element={<Login setUser={setUser} darkMode={darkMode} />} />
             <Route path="/signup" element={<SignUp setUser={setUser} darkMode={darkMode} />} />

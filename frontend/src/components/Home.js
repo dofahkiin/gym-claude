@@ -1,9 +1,10 @@
-// frontend/src/components/Home.js with Program-specific workout titles
+// Updated Home.js with offline-first storage and synchronization
 import React, { useState, useEffect } from 'react';
-import { Button, Card, Notification } from './ui';
+import { Button, Card, Notification, Alert } from './ui';
 import { Link } from 'react-router-dom';
 import ProgramSelector from './ProgramSelector';
 import workoutPrograms from '../data/workoutPrograms';
+import { syncModifiedExercisesWithServer, getModifiedExerciseIds } from '../utils/offlineWorkoutStorage';
 
 const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [workouts, setWorkouts] = useState([]);
@@ -12,12 +13,22 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [programWorkoutNames, setProgramWorkoutNames] = useState({});
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
 
   // Fetch workouts and active program on component mount
   useEffect(() => {
     fetchWorkouts();
     fetchActiveProgram();
+    checkForLocalChanges();
   }, []);
+  
+  // Check if there are pending local changes
+  const checkForLocalChanges = () => {
+    const modifiedExercises = getModifiedExerciseIds();
+    setHasLocalChanges(modifiedExercises.length > 0);
+  };
   
   // Fetch the user's active program
   const fetchActiveProgram = async () => {
@@ -89,9 +100,41 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
     }, 3000);
   };
 
+  // UPDATED: Handle workout toggle with local-first storage
   const handleWorkoutToggle = async () => {
     if (isWorkoutActive) {
+      // We're ending the workout - need to sync with server
       try {
+        setActionLoading(true);
+        
+        // Check if there are modified exercises to sync
+        const modifiedExerciseIds = getModifiedExerciseIds();
+        
+        if (modifiedExerciseIds.length > 0) {
+          console.log(`Syncing ${modifiedExerciseIds.length} modified exercises...`);
+          
+          // Get user token
+          const user = JSON.parse(localStorage.getItem('user'));
+          
+          if (!user || !user.token) {
+            throw new Error('User not authenticated');
+          }
+          
+          // Sync all modified exercises with the server
+          const syncResult = await syncModifiedExercisesWithServer(user.token);
+          
+          if (!syncResult.success) {
+            console.error('Sync failed:', syncResult);
+            setSyncError(syncResult);
+            setShowSyncDialog(true);
+            setActionLoading(false);
+            return; // Stop here if sync failed
+          }
+          
+          console.log('Sync successful:', syncResult);
+        }
+        
+        // Now complete the workout and save history
         const user = JSON.parse(localStorage.getItem('user'));
         const response = await fetch('/api/workouts/complete', {
           method: 'POST',
@@ -105,10 +148,13 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
           throw new Error('Failed to complete workout');
         }
 
-        showNotification('Workout completed successfully');
+        showNotification('Workout completed and saved successfully');
+        checkForLocalChanges(); // Update local changes status
       } catch (error) {
-        showNotification('Failed to save workout data', 'error');
         console.error('Error completing workout:', error);
+        showNotification('Failed to save workout data. Your changes are still saved locally.', 'error');
+        setShowSyncDialog(true);
+        setActionLoading(false);
         return; // Don't set workout to inactive if saving failed
       }
     }
@@ -117,6 +163,60 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
     const newWorkoutActiveState = !isWorkoutActive;
     setIsWorkoutActive(newWorkoutActiveState);
     localStorage.setItem('isWorkoutActive', newWorkoutActiveState.toString());
+    setActionLoading(false);
+  };
+
+  // Retry syncing with server
+  const handleRetrySync = async () => {
+    try {
+      setActionLoading(true);
+      
+      // Get user token
+      const user = JSON.parse(localStorage.getItem('user'));
+      
+      if (!user || !user.token) {
+        throw new Error('User not authenticated');
+      }
+      
+      // Retry syncing
+      const syncResult = await syncModifiedExercisesWithServer(user.token);
+      
+      if (!syncResult.success) {
+        console.error('Retry sync failed:', syncResult);
+        setSyncError(syncResult);
+        showNotification('Sync failed. Please try again later.', 'error');
+      } else {
+        console.log('Retry sync successful:', syncResult);
+        
+        // Now complete the workout
+        const response = await fetch('/api/workouts/complete', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+          },
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to complete workout');
+        }
+
+        showNotification('Workout saved successfully');
+        setShowSyncDialog(false);
+        
+        // Update workout state
+        setIsWorkoutActive(false);
+        localStorage.setItem('isWorkoutActive', 'false');
+        
+        // Update local changes status
+        checkForLocalChanges();
+      }
+    } catch (error) {
+      console.error('Error retrying sync:', error);
+      showNotification('Failed to save workout data. Please try again later.', 'error');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Toggle edit mode for workouts
@@ -258,18 +358,58 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
 
   return (
     <div>
-      {/* Workout Status Card */}
+      {/* Sync Dialog */}
+      {showSyncDialog && (
+        <Alert type="warning" className="mb-6">
+          <div>
+            <h3 className="font-bold text-lg">Workout Data Not Saved</h3>
+            <p className="mt-2">
+              {syncError 
+                ? `Failed to save ${syncError.failedCount} of ${syncError.totalCount} exercises.` 
+                : "Your workout data couldn't be saved to the server."}
+              <br/> 
+              Your changes are still saved on this device.
+            </p>
+            
+            <div className="mt-4 flex flex-col sm:flex-row gap-3">
+              <Button
+                onClick={handleRetrySync}
+                variant="primary"
+                loading={actionLoading}
+              >
+                Retry Saving
+              </Button>
+              <Button
+                onClick={() => setShowSyncDialog(false)}
+                variant="secondary"
+                disabled={actionLoading}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </Alert>
+      )}
+
+      {/* Workout Status Card with local changes indicator */}
       <Card 
         className="mb-8"
         headerContent={
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 w-full">
             <div>
-              <h3 className="font-bold text-gray-800 dark:text-gray-100 text-lg mb-1">
+              <h3 className="font-bold text-gray-800 dark:text-gray-100 text-lg mb-1 flex items-center">
                 {isWorkoutActive ? 'Workout in Progress' : 'Ready to Train?'}
+                {hasLocalChanges && isWorkoutActive && (
+                  <span className="ml-2 text-xs bg-yellow-500/30 text-white px-2 py-0.5 rounded-full">
+                    Unsaved changes
+                  </span>
+                )}
               </h3>
               <p className="text-gray-600 dark:text-gray-300 text-sm">
                 {isWorkoutActive 
-                  ? 'Keep pushing! You got this!' 
+                  ? hasLocalChanges 
+                    ? 'All changes are saved locally and will be synchronized when you end your workout'
+                    : 'Keep pushing! You got this!' 
                   : 'Start a workout session to track your progress'}
               </p>
             </div>
@@ -278,6 +418,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
               rounded
               size="lg"
               onClick={handleWorkoutToggle}
+              loading={actionLoading}
               className="transform hover:scale-105"
             >
               {isWorkoutActive ? 'END WORKOUT' : 'START WORKOUT'}
