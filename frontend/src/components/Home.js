@@ -1,4 +1,4 @@
-// Updated Home.js with better offline support
+// Updated Home.js with fixed import paths
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Notification, Alert } from './ui';
 import { Link } from 'react-router-dom';
@@ -9,8 +9,10 @@ import {
   getModifiedExerciseIds,
   getAllWorkoutsFromLocalStorage,
   saveAllWorkoutsToLocalStorage,
-  getModifiedWorkoutDays
+  getModifiedWorkoutDays,
+  completeWorkoutLocally
 } from '../utils/offlineWorkoutStorage';
+import { syncAllOfflineChanges, hasPendingChanges } from '../utils/syncUtils';
 
 const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [workouts, setWorkouts] = useState([]);
@@ -18,6 +20,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
   const [programWorkoutNames, setProgramWorkoutNames] = useState({});
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [syncError, setSyncError] = useState(null);
@@ -55,9 +58,8 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   
   // Check if there are pending local changes
   const checkForLocalChanges = () => {
-    const modifiedExercises = getModifiedExerciseIds();
-    const modifiedDays = getModifiedWorkoutDays();
-    setHasLocalChanges(modifiedExercises.length > 0 || modifiedDays.length > 0);
+    // Use our comprehensive helper from syncUtils
+    setHasLocalChanges(hasPendingChanges());
   };
   
   // Fetch the user's active program
@@ -195,11 +197,15 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
         setActionLoading(true);
         
         if (!isOnline) {
-          // Just update local state if offline
+          // Offline mode - use local completion
+          completeWorkoutLocally(); // This new function handles workout completion locally
           setIsWorkoutActive(false);
           localStorage.setItem('isWorkoutActive', 'false');
           showNotification('Workout ended. Changes saved locally and will sync when youre online.', 'success');
           setActionLoading(false);
+          
+          // Make sure we set hasLocalChanges to true
+          setHasLocalChanges(true);
           return;
         }
         
@@ -239,11 +245,11 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
           },
           credentials: 'include'
         });
-
+  
         if (!response.ok) {
           throw new Error('Failed to complete workout');
         }
-
+  
         showNotification('Workout completed and saved successfully');
         checkForLocalChanges(); // Update local changes status
       } catch (error) {
@@ -261,6 +267,48 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
     localStorage.setItem('isWorkoutActive', newWorkoutActiveState.toString());
     setActionLoading(false);
   };
+
+// Handle manual sync button click
+const handleSyncClick = async () => {
+  if (!isOnline) {
+    showNotification('You are offline. Please connect to the internet to sync.', 'warning');
+    return;
+  }
+  
+  try {
+    setSyncLoading(true);
+    
+    // Get user token
+    const user = JSON.parse(localStorage.getItem('user'));
+    
+    if (!user || !user.token) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Use our comprehensive sync utility
+    const syncResult = await syncAllOfflineChanges(user.token);
+    
+    if (!syncResult.success) {
+      console.error('Sync failed:', syncResult);
+      setSyncError(syncResult);
+      setShowSyncDialog(true);
+      showNotification('Some changes failed to sync. See details for more information.', 'warning');
+    } else {
+      showNotification('All changes synced successfully!', 'success');
+      
+      // Refresh workouts
+      await fetchWorkouts();
+      
+      // Update local changes status
+      checkForLocalChanges();
+    }
+  } catch (error) {
+    console.error('Error during sync:', error);
+    showNotification('Failed to sync changes. Please try again later.', 'error');
+  } finally {
+    setSyncLoading(false);
+  }
+};
 
   // Retry syncing with server
   const handleRetrySync = async () => {
@@ -593,6 +641,36 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
                 Close
               </Button>
             </div>
+          </div>
+        </Alert>
+      )}
+
+      {/* Sync Changes Banner (Only show when online with pending changes) */}
+      {hasLocalChanges && isOnline && !isWorkoutActive && (
+        <Alert type="info" className="mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-medium">You have unsaved changes</h3>
+              <p className="text-sm mt-1">Changes made while offline need to be synced</p>
+            </div>
+            <Button
+              onClick={handleSyncClick}
+              variant="primary"
+              loading={syncLoading}
+              className="flex items-center space-x-2"
+              size="sm"
+            >
+              {syncLoading ? (
+                "Syncing..."
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  </svg>
+                  <span>Sync Now</span>
+                </>
+              )}
+            </Button>
           </div>
         </Alert>
       )}

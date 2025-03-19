@@ -559,7 +559,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
             });
             
             // Cancel any existing notification
-            if (activeNotificationId) {
+            if (activeNotificationId && isOnline) {
               cancelNotification(activeNotificationId).then(success => {
                 if (success) {
                   console.log('Previous notification canceled successfully');

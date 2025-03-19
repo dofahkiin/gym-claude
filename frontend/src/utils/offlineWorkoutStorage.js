@@ -20,13 +20,85 @@ export const saveExerciseToLocalStorage = (exercise) => {
 };
 
 /**
+ * Mark workout as completed locally
+ * This will reset all set completion flags and save workout history
+ */
+export const completeWorkoutLocally = () => {
+  // Get active workout flag
+  const isWorkoutActive = localStorage.getItem('isWorkoutActive') === 'true';
+  if (!isWorkoutActive) return; // Nothing to do
+  
+  // Get all modified exercise IDs
+  const modifiedExerciseIds = getModifiedExerciseIds();
+  const currentDate = new Date();
+  
+  // For each modified exercise, record history and reset completion
+  for (const exerciseId of modifiedExerciseIds) {
+    const exercise = getExerciseFromLocalStorage(exerciseId);
+    if (!exercise) continue;
+    
+    // Check if any sets are completed
+    const completedSets = exercise.sets.filter(set => set.completed);
+    if (completedSets.length > 0) {
+      // Add to history
+      if (!exercise.history) {
+        exercise.history = [];
+      }
+      
+      exercise.history.push({
+        date: currentDate,
+        sets: completedSets.map(set => ({
+          weight: set.weight,
+          reps: set.reps
+        }))
+      });
+      
+      // Reset completion status
+      exercise.sets = exercise.sets.map(set => ({
+        ...set,
+        completed: false
+      }));
+      
+      // Save updated exercise
+      saveExerciseToLocalStorage(exercise);
+    }
+  }
+  
+  // Mark workout as inactive
+  localStorage.setItem('isWorkoutActive', 'false');
+};
+
+/**
  * Get exercise data from localStorage
  * @param {string} exerciseId - The exercise ID to retrieve
  * @returns {Object|null} - The exercise data or null if not found
  */
 export const getExerciseFromLocalStorage = (exerciseId) => {
   const data = localStorage.getItem(`exercise_${exerciseId}`);
-  return data ? JSON.parse(data) : null;
+  if (!data) return null;
+  
+  // Check if workout is actually active
+  const isWorkoutActive = localStorage.getItem('isWorkoutActive') === 'true';
+  
+  // Parse the exercise data
+  const exercise = JSON.parse(data);
+  
+  // If workout is not active, make sure no sets are marked as completed
+  if (!isWorkoutActive && exercise && exercise.sets) {
+    // Create a deep copy with all sets marked as not completed
+    const updatedExercise = {
+      ...exercise,
+      sets: exercise.sets.map(set => ({
+        ...set,
+        completed: false
+      }))
+    };
+    
+    // Don't save back to localStorage, just return the updated object
+    return updatedExercise;
+  }
+  
+  return exercise;
 };
 
 /**
