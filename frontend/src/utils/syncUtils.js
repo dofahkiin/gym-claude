@@ -530,19 +530,27 @@ const refreshAllDataFromServer = async (token) => {
     const tempExercises = JSON.parse(localStorage.getItem('temp_exercises') || '[]');
     const deletedExercises = JSON.parse(localStorage.getItem('deleted_exercises') || '[]');
     const deletedDays = JSON.parse(localStorage.getItem('deleted_workout_days') || '[]');
+    const newDays = JSON.parse(localStorage.getItem('new_workout_days') || '[]');
+    
+    // Check for exercise-specific entries
+    const allKeys = Object.keys(localStorage);
+    const exerciseKeys = allKeys.filter(key => key.startsWith('exercise_'));
     
     const hasChanges = modifiedExercises.length > 0 || 
                       modifiedDays.length > 0 || 
                       tempExercises.length > 0 || 
                       deletedExercises.length > 0 || 
-                      deletedDays.length > 0;
+                      deletedDays.length > 0 ||
+                      newDays.length > 0;
     
     console.log('Checking for pending changes:', {
-      modifiedExercises: modifiedExercises.length,
-      modifiedDays: modifiedDays.length,
-      tempExercises: tempExercises.length,
-      deletedExercises: deletedExercises.length,
-      deletedDays: deletedDays.length,
+      modifiedExercises,
+      modifiedDays,
+      tempExercises,
+      deletedExercises,
+      deletedDays,
+      newDays,
+      exerciseKeysCount: exerciseKeys.length,
       hasChanges
     });
     

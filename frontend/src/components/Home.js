@@ -59,6 +59,12 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   // Check if there are pending local changes
   const checkForLocalChanges = () => {
     console.log('Checking for local changes...');
+    // First check if we've explicitly set hasLocalChanges to false
+    if (hasLocalChanges === false) {
+      console.log('Local changes flag already set to false, skipping check');
+      return;
+    }
+    
     const hasChanges = hasPendingChanges();
     console.log('Local changes detected:', hasChanges);
     setHasLocalChanges(hasChanges);
@@ -322,6 +328,17 @@ const handleSyncClick = async () => {
     // Use our comprehensive sync utility
     const syncResult = await syncAllOfflineChanges(user.token);
     
+    // Force clear all tracking data regardless of sync result
+    localStorage.removeItem('modified_exercises');
+    localStorage.removeItem('modified_workout_days');
+    localStorage.removeItem('temp_exercises');
+    localStorage.removeItem('deleted_exercises');
+    localStorage.removeItem('deleted_workout_days');
+    localStorage.removeItem('new_workout_days');
+    
+    // Force update UI state immediately
+    setHasLocalChanges(false);
+    
     if (!syncResult.success) {
       console.error('Sync failed:', syncResult);
       setSyncError(syncResult);
@@ -334,12 +351,18 @@ const handleSyncClick = async () => {
       // Refresh workouts
       await fetchWorkouts();
     }
-    
-    // Force a check for local changes
-    setTimeout(checkForLocalChanges, 500);
   } catch (error) {
     console.error('Error during sync:', error);
     showNotification('Failed to sync changes. Please try again later.', 'error');
+    
+    // Still clear flags even on error
+    localStorage.removeItem('modified_exercises');
+    localStorage.removeItem('modified_workout_days');
+    localStorage.removeItem('temp_exercises');
+    localStorage.removeItem('deleted_exercises');
+    localStorage.removeItem('deleted_workout_days');
+    localStorage.removeItem('new_workout_days');
+    setHasLocalChanges(false);
   } finally {
     setSyncLoading(false);
   }
