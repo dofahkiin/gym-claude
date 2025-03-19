@@ -1,10 +1,16 @@
-// Updated Home.js with offline-first storage and synchronization
+// Updated Home.js with better offline support
 import React, { useState, useEffect } from 'react';
 import { Button, Card, Notification, Alert } from './ui';
 import { Link } from 'react-router-dom';
 import ProgramSelector from './ProgramSelector';
 import workoutPrograms from '../data/workoutPrograms';
-import { syncModifiedExercisesWithServer, getModifiedExerciseIds } from '../utils/offlineWorkoutStorage';
+import { 
+  syncModifiedExercisesWithServer, 
+  getModifiedExerciseIds,
+  getAllWorkoutsFromLocalStorage,
+  saveAllWorkoutsToLocalStorage,
+  getModifiedWorkoutDays
+} from '../utils/offlineWorkoutStorage';
 
 const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [workouts, setWorkouts] = useState([]);
@@ -16,44 +22,90 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [syncError, setSyncError] = useState(null);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Track network status
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('Home is now online');
+      setIsOnline(true);
+      checkForLocalChanges();
+    };
+    
+    const handleOffline = () => {
+      console.log('Home is now offline');
+      setIsOnline(false);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Fetch workouts and active program on component mount
   useEffect(() => {
     fetchWorkouts();
     fetchActiveProgram();
     checkForLocalChanges();
-  }, []);
+  }, [isOnline]);
   
   // Check if there are pending local changes
   const checkForLocalChanges = () => {
     const modifiedExercises = getModifiedExerciseIds();
-    setHasLocalChanges(modifiedExercises.length > 0);
+    const modifiedDays = getModifiedWorkoutDays();
+    setHasLocalChanges(modifiedExercises.length > 0 || modifiedDays.length > 0);
   };
   
   // Fetch the user's active program
   const fetchActiveProgram = async () => {
     try {
-      const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch('/api/user/active-program', {
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
+      // First check localStorage
+      const storedProgram = localStorage.getItem('active_program');
+      if (storedProgram && workoutPrograms[storedProgram]) {
+        // Create mapping of day numbers to workout names from localStorage
+        const program = workoutPrograms[storedProgram];
+        const workoutNameMap = {};
         
-        // If we have an active program, create a mapping of day numbers to workout names
-        if (data.activeProgram && workoutPrograms[data.activeProgram]) {
-          const program = workoutPrograms[data.activeProgram];
-          const workoutNameMap = {};
+        program.workouts.forEach(workout => {
+          workoutNameMap[workout.day] = workout.name;
+        });
+        
+        setProgramWorkoutNames(workoutNameMap);
+      }
+      
+      // If we're online, also check the server
+      if (isOnline) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const response = await fetch('/api/user/active-program', {
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+          },
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
           
-          program.workouts.forEach(workout => {
-            workoutNameMap[workout.day] = workout.name;
-          });
+          // Save to localStorage for offline use
+          if (data.activeProgram) {
+            localStorage.setItem('active_program', data.activeProgram);
+          }
           
-          setProgramWorkoutNames(workoutNameMap);
+          // If we have an active program, create a mapping of day numbers to workout names
+          if (data.activeProgram && workoutPrograms[data.activeProgram]) {
+            const program = workoutPrograms[data.activeProgram];
+            const workoutNameMap = {};
+            
+            program.workouts.forEach(workout => {
+              workoutNameMap[workout.day] = workout.name;
+            });
+            
+            setProgramWorkoutNames(workoutNameMap);
+          }
         }
       }
     } catch (error) {
@@ -64,22 +116,57 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   const fetchWorkouts = async () => {
     try {
       setLoading(true);
-      const user = JSON.parse(localStorage.getItem('user'));
-      const response = await fetch('/api/workouts', {
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        credentials: 'include'
-      });
       
-      if (!response.ok) {
-        throw new Error('Failed to fetch workouts');
+      // Try to load from localStorage first
+      const localWorkouts = getAllWorkoutsFromLocalStorage();
+      
+      if (!isOnline) {
+        // Offline mode - use localStorage only
+        if (localWorkouts) {
+          console.log('Using locally stored workouts (offline mode)');
+          // Sort workouts by day number
+          localWorkouts.sort((a, b) => a.day - b.day);
+          setWorkouts(localWorkouts);
+        } else {
+          showNotification('No cached workouts available offline', 'warning');
+        }
+      } else {
+        // Online mode - try server first
+        try {
+          const user = JSON.parse(localStorage.getItem('user'));
+          const response = await fetch('/api/workouts', {
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+            },
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch workouts from server');
+          }
+          
+          const data = await response.json();
+          
+          // Sort workouts by day number
+          data.sort((a, b) => a.day - b.day);
+          
+          // Save to localStorage for offline access
+          saveAllWorkoutsToLocalStorage(data);
+          
+          setWorkouts(data);
+        } catch (serverError) {
+          console.error('Server fetch error, using localStorage:', serverError);
+          
+          // Fall back to localStorage if we have it
+          if (localWorkouts) {
+            console.log('Using locally stored workouts');
+            localWorkouts.sort((a, b) => a.day - b.day);
+            setWorkouts(localWorkouts);
+          } else {
+            showNotification('Failed to load workouts and no cache available', 'error');
+          }
+        }
       }
-      
-      const data = await response.json();
-      // Sort workouts by day number
-      data.sort((a, b) => a.day - b.day);
-      setWorkouts(data);
     } catch (error) {
       console.error('Error fetching workouts:', error);
       showNotification('Failed to load workouts', 'error');
@@ -100,12 +187,21 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
     }, 3000);
   };
 
-  // UPDATED: Handle workout toggle with local-first storage
+  // Handle workout toggle with local-first storage
   const handleWorkoutToggle = async () => {
     if (isWorkoutActive) {
       // We're ending the workout - need to sync with server
       try {
         setActionLoading(true);
+        
+        if (!isOnline) {
+          // Just update local state if offline
+          setIsWorkoutActive(false);
+          localStorage.setItem('isWorkoutActive', 'false');
+          showNotification('Workout ended. Changes saved locally and will sync when youre online.', 'success');
+          setActionLoading(false);
+          return;
+        }
         
         // Check if there are modified exercises to sync
         const modifiedExerciseIds = getModifiedExerciseIds();
@@ -171,6 +267,12 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
     try {
       setActionLoading(true);
       
+      if (!isOnline) {
+        showNotification('You are currently offline. Please try again when connected.', 'warning');
+        setActionLoading(false);
+        return;
+      }
+      
       // Get user token
       const user = JSON.parse(localStorage.getItem('user'));
       
@@ -224,7 +326,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
     setEditMode(!editMode);
   };
 
-  // Add a new workout day
+  // Add a new workout day with offline support
   const handleAddWorkoutDay = async () => {
     try {
       setActionLoading(true);
@@ -235,28 +337,40 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
       
       const newDayNumber = highestDay + 1;
       
-      const user = JSON.parse(localStorage.getItem('user'));
-      
-      // Call the API to create a new workout day
-      const response = await fetch('/api/workouts/days', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ day: newDayNumber }),
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add workout day');
+      if (!isOnline) {
+        // Offline mode - create locally
+        addWorkoutDayOffline(newDayNumber);
+        return;
       }
       
-      // Refresh workouts after addition
-      await fetchWorkouts();
-      
-      showNotification(`Day ${newDayNumber} added successfully`);
+      // Online mode - try server first
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        
+        // Call the API to create a new workout day
+        const response = await fetch('/api/workouts/days', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ day: newDayNumber }),
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to add workout day');
+        }
+        
+        // Refresh workouts after addition
+        await fetchWorkouts();
+        
+        showNotification(`Day ${newDayNumber} added successfully`);
+      } catch (error) {
+        console.error('Server error, falling back to offline mode:', error);
+        addWorkoutDayOffline(newDayNumber);
+      }
     } catch (error) {
       console.error('Error adding workout day:', error);
       showNotification(`Failed to add workout day: ${error.message}`, 'error');
@@ -265,37 +379,121 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
     }
   };
 
-  // Remove a workout day
+  // Helper to add workout day in offline mode
+  const addWorkoutDayOffline = (dayNumber) => {
+    // Create new empty workout day
+    const newWorkout = {
+      day: dayNumber,
+      exercises: [],
+      _id: `temp_day_${Date.now()}` // Temporary ID for offline mode
+    };
+    
+    // Update workouts in memory
+    const updatedWorkouts = [...workouts, newWorkout];
+    updatedWorkouts.sort((a, b) => a.day - b.day);
+    
+    // Update state
+    setWorkouts(updatedWorkouts);
+    setHasLocalChanges(true);
+    
+    // Save to localStorage
+    saveAllWorkoutsToLocalStorage(updatedWorkouts);
+    
+    // Track this new day for syncing
+    const modifiedDays = getModifiedWorkoutDays();
+    modifiedDays.push(dayNumber.toString());
+    localStorage.setItem('modified_workout_days', JSON.stringify(modifiedDays));
+    
+    // Store new day info
+    const newDays = JSON.parse(localStorage.getItem('new_workout_days') || '[]');
+    newDays.push({ day: dayNumber, id: newWorkout._id });
+    localStorage.setItem('new_workout_days', JSON.stringify(newDays));
+    
+    showNotification(`Day ${dayNumber} added and saved locally`, 'success');
+  };
+
+  // Remove a workout day with offline support
   const handleRemoveWorkoutDay = async (dayToRemove) => {
     try {
       setActionLoading(true);
       
-      const user = JSON.parse(localStorage.getItem('user'));
+      // Check if this is a temporary day created offline
+      const isTemporaryDay = workouts.find(w => w.day === dayToRemove && w._id?.startsWith('temp_day_'));
       
-      // Call the API to remove the workout day
-      const response = await fetch(`/api/workouts/days/${dayToRemove}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to remove workout day');
+      if (!isOnline) {
+        // Offline mode - remove locally
+        removeWorkoutDayOffline(dayToRemove);
+        return;
       }
       
-      // Refresh workouts after removal
-      await fetchWorkouts();
-      
-      showNotification(`Day ${dayToRemove} removed successfully`);
+      // Skip server call for temporary days that only exist locally
+      if (!isTemporaryDay) {
+        try {
+          const user = JSON.parse(localStorage.getItem('user'));
+          
+          // Call the API to remove the workout day
+          const response = await fetch(`/api/workouts/days/${dayToRemove}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+            },
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to remove workout day');
+          }
+          
+          // Refresh workouts after removal
+          await fetchWorkouts();
+          
+          showNotification(`Day ${dayToRemove} removed successfully`);
+        } catch (error) {
+          console.error('Server error, falling back to offline mode:', error);
+          removeWorkoutDayOffline(dayToRemove);
+        }
+      } else {
+        // For temporary days, just remove locally
+        removeWorkoutDayOffline(dayToRemove);
+      }
     } catch (error) {
       console.error('Error removing workout day:', error);
       showNotification(`Failed to remove workout day: ${error.message}`, 'error');
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Helper to remove workout day in offline mode
+  const removeWorkoutDayOffline = (dayToRemove) => {
+    // Find the workout to check if it's temporary
+    const workoutToRemove = workouts.find(w => w.day === dayToRemove);
+    const isTemporaryDay = workoutToRemove?._id?.startsWith('temp_day_');
+    
+    // Update workouts in memory
+    const updatedWorkouts = workouts.filter(w => w.day !== dayToRemove);
+    
+    // Update state
+    setWorkouts(updatedWorkouts);
+    setHasLocalChanges(true);
+    
+    // Save to localStorage
+    saveAllWorkoutsToLocalStorage(updatedWorkouts);
+    
+    if (isTemporaryDay) {
+      // For temporary days, remove from new days list
+      const newDays = JSON.parse(localStorage.getItem('new_workout_days') || '[]');
+      const updatedNewDays = newDays.filter(d => d.day !== dayToRemove);
+      localStorage.setItem('new_workout_days', JSON.stringify(updatedNewDays));
+    } else {
+      // For server days, mark as deleted
+      const deletedDays = JSON.parse(localStorage.getItem('deleted_workout_days') || '[]');
+      deletedDays.push(dayToRemove);
+      localStorage.setItem('deleted_workout_days', JSON.stringify(deletedDays));
+    }
+    
+    showNotification(`Day ${dayToRemove} removed and saved locally`, 'success');
   };
 
   // Get workout name from program or use default
@@ -332,10 +530,17 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
       
       <Link
         to={`/workout/${workout.day}`}
-        className="block p-6"
+        className={`block p-6 ${workout._id?.startsWith('temp_day_') ? 'border-l-4 border-yellow-500 dark:border-yellow-400' : ''}`}
       >
         <div className="flex justify-between items-start mb-4">
-          <h3 className="font-bold text-gray-800 dark:text-gray-100">Day {workout.day}: {getWorkoutName(workout.day)}</h3>
+          <div>
+            <h3 className="font-bold text-gray-800 dark:text-gray-100">
+              Day {workout.day}: {getWorkoutName(workout.day)}
+            </h3>
+            {workout._id?.startsWith('temp_day_') && (
+              <span className="text-xs text-yellow-600 dark:text-yellow-400">Added offline (not synced)</span>
+            )}
+          </div>
         </div>
         
         {workout.exercises && (
@@ -376,6 +581,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
                 onClick={handleRetrySync}
                 variant="primary"
                 loading={actionLoading}
+                disabled={!isOnline}
               >
                 Retry Saving
               </Button>
