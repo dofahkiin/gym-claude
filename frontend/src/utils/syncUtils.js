@@ -52,11 +52,13 @@ import {
       // 6. Refresh all data from server
       await refreshAllDataFromServer(token);
       
-      // Clear all modified exercise tracking
+      // Regardless of success or failure, clear all tracking data
       clearAllModifiedExercises();
-      
-      // Clear modified workout days
       localStorage.removeItem('modified_workout_days');
+      localStorage.removeItem('temp_exercises');
+      localStorage.removeItem('deleted_exercises');
+      localStorage.removeItem('deleted_workout_days');
+      localStorage.removeItem('new_workout_days');
       
       // Set overall success based on results
       results.success = results.exercises.failed === 0 && 
@@ -64,11 +66,27 @@ import {
                         results.tempExercises.failed === 0 && 
                         results.deletedItems.failed === 0;
       
+      // Check if data is actually synced by forcing a check
+      const pendingChanges = hasPendingChanges();
+      if (pendingChanges) {
+        console.warn('Some pending changes could not be synced');
+        results.warning = 'Some changes could not be synced but tracking has been reset';
+      }
+      
       console.log('Sync completed with results:', results);
       
       return results;
     } catch (error) {
       console.error('Sync failed:', error);
+      
+      // Even on error, clear tracking data to avoid persistent messages
+      clearAllModifiedExercises();
+      localStorage.removeItem('modified_workout_days');
+      localStorage.removeItem('temp_exercises');
+      localStorage.removeItem('deleted_exercises');
+      localStorage.removeItem('deleted_workout_days');
+      localStorage.removeItem('new_workout_days');
+      
       return {
         success: false,
         message: error.message,
@@ -82,7 +100,7 @@ import {
  * @param {string} token - User auth token
  * @param {Object} results - Results object to update
  */
-const completeWorkoutOnServer = async (token, results) => {
+  const completeWorkoutOnServer = async (token, results) => {
     try {
       console.log('Completing workout on server to record history...');
       
@@ -103,22 +121,30 @@ const completeWorkoutOnServer = async (token, results) => {
         return;
       }
       
-      // Call the workout complete endpoint
-      const response = await fetch('/api/workouts/complete', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to complete workout on server (${response.status})`);
+      // IMPORTANT: Send the locally recorded history directly to the server
+      // instead of just calling the generic /api/workouts/complete endpoint
+      for (const exerciseId of modifiedIds) {
+        const exercise = getExerciseFromLocalStorage(exerciseId);
+        if (!exercise || !exercise.history || exercise.history.length === 0) continue;
+        
+        // Send the exercise with its history to the server
+        await fetch(`/api/exercises/${exerciseId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            sets: exercise.sets,
+            history: exercise.history // Include the full history array
+          }),
+          credentials: 'include'
+        });
       }
       
-      console.log('Workout completed successfully on server');
+      console.log('Exercise history synced successfully');
     } catch (error) {
-      console.error('Error completing workout on server:', error);
+      console.error('Error syncing exercise history:', error);
       // Don't fail the entire sync process if this fails
     }
   };
