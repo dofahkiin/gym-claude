@@ -1,4 +1,4 @@
-// Exercise.js - Updated to use localStorage first
+// Exercise.js - Enhanced for complete offline support
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Alert, ExerciseSet } from './ui';
@@ -7,14 +7,15 @@ import workoutPrograms from '../data/workoutPrograms';
 import { sendNotification, scheduleNotification, cancelNotification } from '../utils/notificationService';
 import { 
   saveExerciseToLocalStorage, 
-  getExerciseFromLocalStorage
+  getExerciseFromLocalStorage,
+  getWorkoutFromLocalStorage,
+  markWorkoutDayAsModified
 } from '../utils/offlineWorkoutStorage';
 
 // Global timer storage keys
 const GLOBAL_TIMER_START_KEY = 'global_rest_timer_start';
 const GLOBAL_TIMER_DURATION_KEY = 'global_rest_timer_duration';
 const GLOBAL_NOTIFICATION_KEY = 'global_notification_id';
-
 
 const Exercise = ({ isWorkoutActive, darkMode }) => {
   const { id, day } = useParams();
@@ -28,6 +29,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   const [restTime, setRestTime] = useState(90); // Default to 90 seconds
   const [activeNotificationId, setActiveNotificationId] = useState(null);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   // Initialize timer state from localStorage
   const [timerStartTime, setTimerStartTime] = useState(null);
@@ -39,6 +41,27 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   });
 
   const navigate = useNavigate();
+
+  // Track network status
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('Exercise component is now online');
+      setIsOnline(true);
+    };
+    
+    const handleOffline = () => {
+      console.log('Exercise component is now offline');
+      setIsOnline(false);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Add this useEffect to handle page visibility changes
   useEffect(() => {
@@ -100,20 +123,45 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   useEffect(() => {
     const fetchWorkoutExercises = async () => {
       try {
-        const user = JSON.parse(localStorage.getItem('user'));
-        const response = await fetch(`/api/workouts/${day}`, {
-          headers: {
-            'Authorization': `Bearer ${user.token}`,
-          },
-          credentials: 'include'
-        });
+        // First try to get exercises from localStorage
+        const localWorkout = getWorkoutFromLocalStorage(day);
         
-        if (!response.ok) {
-          throw new Error('Failed to fetch workout data');
+        if (!isOnline) {
+          // Offline mode - use localStorage only
+          if (localWorkout && localWorkout.exercises) {
+            console.log('Using locally stored workout exercises (offline mode)');
+            setExercises(localWorkout.exercises);
+          } else {
+            throw new Error('No cached workout data available offline');
+          }
+        } else {
+          // Online mode - try server first, fall back to cache
+          try {
+            const user = JSON.parse(localStorage.getItem('user'));
+            const response = await fetch(`/api/workouts/${day}`, {
+              headers: {
+                'Authorization': `Bearer ${user.token}`,
+              },
+              credentials: 'include'
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to fetch workout data');
+            }
+            
+            const data = await response.json();
+            setExercises(data.exercises);
+          } catch (serverError) {
+            console.error('Server fetch error, trying localStorage:', serverError);
+            
+            if (localWorkout && localWorkout.exercises) {
+              console.log('Using locally stored workout exercises');
+              setExercises(localWorkout.exercises);
+            } else {
+              throw new Error('Failed to load workout data and no cache available');
+            }
+          }
         }
-        
-        const data = await response.json();
-        setExercises(data.exercises);
       } catch (err) {
         setError(err.message);
       }
@@ -122,9 +170,9 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     if (day) {
       fetchWorkoutExercises();
     }
-  }, [day]);
+  }, [day, isOnline]);
 
-  // Fetch exercise data
+  // Fetch exercise data - enhanced for offline support
   useEffect(() => {
     const fetchExerciseData = async () => {
       try {
@@ -133,43 +181,142 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
         // First check localStorage for this exercise
         const localExercise = getExerciseFromLocalStorage(id);
         
-        // If found in localStorage, use that data
-        if (localExercise) {
-          console.log('Using locally stored exercise data');
-          setExercise(localExercise);
-          setHasLocalChanges(true);
-          
-          // Set rest time from local data
-          if (localExercise.restTime) {
-            setRestTime(localExercise.restTime);
+        if (!isOnline) {
+          // Offline mode - use localStorage only
+          if (localExercise) {
+            console.log('Using locally stored exercise data (offline mode)');
+            setExercise(localExercise);
+            setHasLocalChanges(true);
+            
+            // Set rest time from local data
+            if (localExercise.restTime) {
+              setRestTime(localExercise.restTime);
+            }
+          } else {
+            // If we can't find the specific exercise in localStorage, try to find it 
+            // in the workout data (which might be cached as a whole)
+            const localWorkout = getWorkoutFromLocalStorage(day);
+            
+            if (localWorkout && localWorkout.exercises) {
+              const exerciseFromWorkout = localWorkout.exercises.find(ex => ex._id === id);
+              if (exerciseFromWorkout) {
+                console.log('Found exercise in cached workout data');
+                setExercise(exerciseFromWorkout);
+                
+                // Also save it individually for easier access later
+                saveExerciseToLocalStorage(exerciseFromWorkout);
+                
+                // Set rest time
+                if (exerciseFromWorkout.restTime) {
+                  setRestTime(exerciseFromWorkout.restTime);
+                }
+              } else {
+                throw new Error('Exercise not found in cached data');
+              }
+            } else {
+              throw new Error('No cached data available offline');
+            }
           }
         } else {
-          // Otherwise fetch from server
-          const user = JSON.parse(localStorage.getItem('user'));
-          const response = await fetch(`/api/exercises/${id}`, {
-            headers: {
-              'Authorization': `Bearer ${user.token}`,
-            },
-            credentials: 'include'
-          });
-          
-          if (!response.ok) {
-            throw new Error('Failed to fetch exercise data');
-          }
-          
-          const data = await response.json();
-          setExercise(data);
-          
-          // Set rest time
-          if (data.restTime) {
-            setRestTime(data.restTime);
-          } else {
-            // Default rest time logic...
-            const fetchActiveProgram = async () => {
-              // Existing program fetching code...
-            };
+          // Online mode - try local storage first, then server if needed
+          if (localExercise) {
+            console.log('Using locally stored exercise data');
+            setExercise(localExercise);
+            setHasLocalChanges(true);
             
-            fetchActiveProgram();
+            // Set rest time from local data
+            if (localExercise.restTime) {
+              setRestTime(localExercise.restTime);
+            }
+          } else {
+            // Try server
+            try {
+              const user = JSON.parse(localStorage.getItem('user'));
+              const response = await fetch(`/api/exercises/${id}`, {
+                headers: {
+                  'Authorization': `Bearer ${user.token}`,
+                },
+                credentials: 'include'
+              });
+              
+              if (!response.ok) {
+                throw new Error('Failed to fetch exercise data');
+              }
+              
+              const data = await response.json();
+              setExercise(data);
+              
+              // Cache the data for offline use
+              saveExerciseToLocalStorage(data);
+              
+              // Set rest time
+              if (data.restTime) {
+                setRestTime(data.restTime);
+              } else {
+                // Default rest time logic...
+                const fetchActiveProgram = async () => {
+                  // Get from localStorage first
+                  const storedProgram = localStorage.getItem('active_program');
+                  
+                  if (storedProgram && workoutPrograms[storedProgram]) {
+                    const program = workoutPrograms[storedProgram];
+                    setRestTime(program.defaultRestTime || 90);
+                  } else {
+                    // Try server if offline fetch failed
+                    try {
+                      const user = JSON.parse(localStorage.getItem('user'));
+                      const response = await fetch('/api/user/active-program', {
+                        headers: {
+                          'Authorization': `Bearer ${user.token}`,
+                        },
+                        credentials: 'include'
+                      });
+                      
+                      if (response.ok) {
+                        const data = await response.json();
+                        
+                        if (data.activeProgram && workoutPrograms[data.activeProgram]) {
+                          const program = workoutPrograms[data.activeProgram];
+                          setRestTime(program.defaultRestTime || 90);
+                          
+                          // Save to localStorage for offline access
+                          localStorage.setItem('active_program', data.activeProgram);
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error fetching active program:', error);
+                    }
+                  }
+                };
+                
+                fetchActiveProgram();
+              }
+            } catch (serverError) {
+              console.error('Server fetch failed, trying workout cache:', serverError);
+              
+              // If individual exercise not found, try to find it in the workout data
+              const localWorkout = getWorkoutFromLocalStorage(day);
+              
+              if (localWorkout && localWorkout.exercises) {
+                const exerciseFromWorkout = localWorkout.exercises.find(ex => ex._id === id);
+                if (exerciseFromWorkout) {
+                  console.log('Found exercise in cached workout data');
+                  setExercise(exerciseFromWorkout);
+                  
+                  // Also save it individually for easier access later
+                  saveExerciseToLocalStorage(exerciseFromWorkout);
+                  
+                  // Set rest time
+                  if (exerciseFromWorkout.restTime) {
+                    setRestTime(exerciseFromWorkout.restTime);
+                  }
+                } else {
+                  throw new Error('Exercise not found in cached data');
+                }
+              } else {
+                throw serverError;
+              }
+            }
           }
         }
     
@@ -230,6 +377,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
           }
         }
       } catch (err) {
+        console.error('Error fetching exercise:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -237,7 +385,7 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     };
 
     fetchExerciseData();
-  }, [id, restTime]);
+  }, [id, day, restTime, isOnline]);
 
   // Update current index when exercise and exercises list are loaded
   useEffect(() => {
@@ -249,14 +397,16 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     }
   }, [exercise, exercises]);
 
-  // Handle navigation
+  // Handle navigation - improved to handle temp IDs and offline exercises
   const handleNavigation = useCallback((direction) => {
     if (!exercises || !day) return;
     
     const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
     if (newIndex >= 0 && newIndex < exercises.length) {
       const nextExercise = exercises[newIndex];
-      navigate(`/workout/${day}/exercise/${nextExercise._id}`);
+      if (nextExercise && nextExercise._id) {
+        navigate(`/workout/${day}/exercise/${nextExercise._id}`);
+      }
     }
   }, [currentIndex, exercises, navigate, day]);
 
@@ -276,20 +426,29 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       setExercise(updatedExercise);
       setHasLocalChanges(true);
       
+      // Mark the workout day as having changes
+      markWorkoutDayAsModified(day);
+      
       // Also update on server since this is a one-time configuration change
-      // and doesn't affect workout history
-      const user = JSON.parse(localStorage.getItem('user'));
-      
-      await fetch(`/api/exercises/${exercise._id}/rest-time`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ restTime: newDuration }),
-        credentials: 'include'
-      });
-      
+      // and doesn't affect workout history - but only if online
+      if (isOnline && !exercise._id.startsWith('temp_')) {
+        try {
+          const user = JSON.parse(localStorage.getItem('user'));
+          
+          await fetch(`/api/exercises/${exercise._id}/rest-time`, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ restTime: newDuration }),
+            credentials: 'include'
+          });
+        } catch (error) {
+          console.error('Failed to update rest time on server:', error);
+          // Continue with the local changes even if server update fails
+        }
+      }
     } catch (err) {
       console.error('Failed to update rest time:', err);
       setError('Failed to update rest time, but changes are saved locally');
@@ -339,18 +498,18 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     // Check more frequently to ensure we don't miss the expiration
     const intervalId = setInterval(checkTimer, 500);
   
-  // Also set up a backup absolute timeout as a fallback
-  const timeRemaining = Math.max(0, (restTime * 1000) - (Date.now() - timerStartTime));
-  const backupTimeoutId = setTimeout(() => {
-    console.log('Backup timeout triggered for timer completion');
-    handleTimerComplete();
-  }, timeRemaining + 1000); // Add a small buffer
-  
-  return () => {
-    clearInterval(intervalId);
-    clearTimeout(backupTimeoutId);
-  };
-}, [timerStartTime, exercise, handleTimerComplete, restTime]);
+    // Also set up a backup absolute timeout as a fallback
+    const timeRemaining = Math.max(0, (restTime * 1000) - (Date.now() - timerStartTime));
+    const backupTimeoutId = setTimeout(() => {
+      console.log('Backup timeout triggered for timer completion');
+      handleTimerComplete();
+    }, timeRemaining + 1000); // Add a small buffer
+    
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(backupTimeoutId);
+    };
+  }, [timerStartTime, exercise, handleTimerComplete, restTime]);
 
   // Load stored notification ID on component mount
   useEffect(() => {
@@ -410,31 +569,34 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
               });
             }
             
-            // Calculate early notification time (3 seconds before timer ends)
-            // Ensure at least 1 second delay
-            const notificationDelay = Math.max(restTime - 3, 1);
-            
-            // Schedule notification to arrive 3 seconds early
-            scheduleNotification(
-              'Timer',
-              `Done`,
-              window.location.href,
-              notificationDelay
-            ).then(result => {
-              if (result.success) {
-                console.log('Notification scheduled successfully with ID:', result.notificationId);
-                setActiveNotificationId(result.notificationId);
-                
-                // Store notification ID both locally and globally
-                localStorage.setItem(`notification_${exercise._id}`, result.notificationId);
-                localStorage.setItem(GLOBAL_NOTIFICATION_KEY, result.notificationId);
-              } else {
-                console.error('Failed to schedule notification');
-              }
-            });
+            // Only try to schedule notification if we're online
+            if (isOnline) {
+              // Calculate early notification time (3 seconds before timer ends)
+              // Ensure at least 1 second delay
+              const notificationDelay = Math.max(restTime - 3, 1);
+              
+              // Schedule notification to arrive 3 seconds early
+              scheduleNotification(
+                'Timer',
+                `Done`,
+                window.location.href,
+                notificationDelay
+              ).then(result => {
+                if (result.success) {
+                  console.log('Notification scheduled successfully with ID:', result.notificationId);
+                  setActiveNotificationId(result.notificationId);
+                  
+                  // Store notification ID both locally and globally
+                  localStorage.setItem(`notification_${exercise._id}`, result.notificationId);
+                  localStorage.setItem(GLOBAL_NOTIFICATION_KEY, result.notificationId);
+                } else {
+                  console.error('Failed to schedule notification');
+                }
+              });
+            }
           } else {
             // User is unchecking the set, cancel any notification and stop timers
-            if (activeNotificationId) {
+            if (activeNotificationId && isOnline) {
               cancelNotification(activeNotificationId).then(success => {
                 if (success) {
                   console.log('Notification canceled on set uncheck');
@@ -466,13 +628,16 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       // Save to localStorage 
       saveExerciseToLocalStorage(updatedExercise);
       setHasLocalChanges(true);
+      
+      // Mark workout day as modified
+      markWorkoutDayAsModified(day);
     } catch (err) {
       console.error('Set completion error:', err);
       setError(err.message);
     }
-  }, [exercise, isWorkoutActive, restTime, activeNotificationId]);
+  }, [exercise, isWorkoutActive, restTime, activeNotificationId, isOnline, day]);
 
-  // Handle set addition
+  // Handle set addition - with offline support
   const handleAddSet = async () => {
     if (!exercise) return;
     
@@ -481,43 +646,56 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       
       // Get the last set's data to use as a template for the new set
       const lastSet = exercise.sets[exercise.sets.length - 1];
-      const user = JSON.parse(localStorage.getItem('user'));
       
-      const response = await fetch(`/api/exercises/${exercise._id}/sets`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          weight: lastSet.weight,
-          reps: lastSet.reps
-        }),
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add new set');
+      if (!isOnline || exercise._id.startsWith('temp_')) {
+        // Offline mode or temp exercise - add set locally
+        addSetOffline(lastSet);
+        return;
       }
       
-      // Refresh exercise data
-      const getResponse = await fetch(`/api/exercises/${exercise._id}`, {
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        credentials: 'include'
-      });
+      // Online mode - try to add set to server
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        
+        const response = await fetch(`/api/exercises/${exercise._id}/sets`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            weight: lastSet.weight,
+            reps: lastSet.reps
+          }),
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to add new set');
+        }
+        
+        // Refresh exercise data
+        const getResponse = await fetch(`/api/exercises/${exercise._id}`, {
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+          },
+          credentials: 'include'
+        });
 
-      if (!getResponse.ok) {
-        throw new Error('Failed to fetch updated exercise data');
+        if (!getResponse.ok) {
+          throw new Error('Failed to fetch updated exercise data');
+        }
+
+        const data = await getResponse.json();
+        setExercise(data);
+        
+        // Also store in localStorage
+        saveExerciseToLocalStorage(data);
+      } catch (error) {
+        console.error('Server error, falling back to offline mode:', error);
+        addSetOffline(lastSet);
       }
-
-      const data = await getResponse.json();
-      setExercise(data);
-      
-      // Also store in localStorage
-      saveExerciseToLocalStorage(data);
     } catch (err) {
       console.error('Add set error:', err);
       setError(err.message);
@@ -526,7 +704,33 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     }
   };
 
-  // Handle set removal
+  // Helper to add set in offline mode
+  const addSetOffline = (lastSet) => {
+    // Create a new set based on the last set
+    const newSet = {
+      weight: lastSet.weight,
+      reps: lastSet.reps,
+      completed: false
+    };
+    
+    // Update exercise in memory
+    const updatedExercise = { ...exercise };
+    updatedExercise.sets = [...updatedExercise.sets, newSet];
+    
+    // Update state
+    setExercise(updatedExercise);
+    setHasLocalChanges(true);
+    
+    // Save to localStorage
+    saveExerciseToLocalStorage(updatedExercise);
+    
+    // Mark workout day as modified
+    markWorkoutDayAsModified(day);
+    
+    console.log('Set added locally');
+  };
+
+  // Handle set removal - with offline support
   const handleRemoveSet = async (setIndex) => {
     if (!exercise) return;
     
@@ -538,44 +742,76 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     
     try {
       setActionLoading(true);
-      const user = JSON.parse(localStorage.getItem('user'));
       
-      const response = await fetch(`/api/exercises/${exercise._id}/sets/${setIndex}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to remove set');
+      if (!isOnline || exercise._id.startsWith('temp_')) {
+        // Offline mode or temp exercise - remove set locally
+        removeSetOffline(setIndex);
+        return;
       }
       
-      // Refresh exercise data
-      const getResponse = await fetch(`/api/exercises/${exercise._id}`, {
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        credentials: 'include'
-      });
+      // Online mode - try to remove from server
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        
+        const response = await fetch(`/api/exercises/${exercise._id}/sets/${setIndex}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+          },
+          credentials: 'include'
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to remove set');
+        }
+        
+        // Refresh exercise data
+        const getResponse = await fetch(`/api/exercises/${exercise._id}`, {
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+          },
+          credentials: 'include'
+        });
 
-      if (!getResponse.ok) {
-        throw new Error('Failed to fetch updated exercise data');
+        if (!getResponse.ok) {
+          throw new Error('Failed to fetch updated exercise data');
+        }
+
+        const data = await getResponse.json();
+        setExercise(data);
+        
+        // Also store in localStorage
+        saveExerciseToLocalStorage(data);
+      } catch (error) {
+        console.error('Server error, falling back to offline mode:', error);
+        removeSetOffline(setIndex);
       }
-
-      const data = await getResponse.json();
-      setExercise(data);
-      
-      // Also store in localStorage
-      saveExerciseToLocalStorage(data);
     } catch (err) {
       console.error('Remove set error:', err);
       setError(err.message);
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Helper to remove set in offline mode
+  const removeSetOffline = (setIndex) => {
+    // Update exercise in memory
+    const updatedExercise = { ...exercise };
+    updatedExercise.sets = exercise.sets.filter((_, i) => i !== setIndex);
+    
+    // Update state
+    setExercise(updatedExercise);
+    setHasLocalChanges(true);
+    
+    // Save to localStorage
+    saveExerciseToLocalStorage(updatedExercise);
+    
+    // Mark workout day as modified
+    markWorkoutDayAsModified(day);
+    
+    console.log('Set removed locally');
   };
 
   // Handle weight change - MODIFIED to save to localStorage first
@@ -595,7 +831,10 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     // Save to localStorage instead of server
     saveExerciseToLocalStorage(updatedExercise);
     setHasLocalChanges(true);
-  }, [exercise]);
+    
+    // Mark workout day as modified
+    markWorkoutDayAsModified(day);
+  }, [exercise, day]);
 
   // Handle reps change - MODIFIED to save to localStorage first
   const handleRepsChange = useCallback((index, value) => {
@@ -614,7 +853,10 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
     // Save to localStorage instead of server
     saveExerciseToLocalStorage(updatedExercise);
     setHasLocalChanges(true);
-  }, [exercise]);
+    
+    // Mark workout day as modified
+    markWorkoutDayAsModified(day);
+  }, [exercise, day]);
 
   if (error) return <Alert type="error">Error: {error}</Alert>;
   
@@ -641,10 +883,23 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
                 <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
               </svg>
             </button>
-            <h1 className="text-xl font-bold">{exercise.name}</h1>
+            <h1 className="text-xl font-bold">
+              {exercise.name}
+              {exercise._id?.startsWith('temp_') && (
+                <span className="ml-2 text-xs bg-yellow-500/30 text-white px-2 py-0.5 rounded-full">
+                  Added offline
+                </span>
+              )}
+            </h1>
           </div>
           <div className="flex items-center text-indigo-100 text-sm">
             <span>{completedSets} of {exercise.sets.length} sets completed</span>
+            
+            {hasLocalChanges && !isOnline && (
+              <span className="ml-2 bg-yellow-500/30 text-white text-xs px-2 py-0.5 rounded-full">
+                Saved locally
+              </span>
+            )}
           </div>
         </div>
         
@@ -693,7 +948,12 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
         </div>
       </Card>
 
-
+      {/* Offline Warning - only show if offline and user needs to know */}
+      {!isOnline && hasLocalChanges && (
+        <Alert type="warning" className="mb-6">
+          You're currently offline. Changes will be saved locally and synced when you're back online.
+        </Alert>
+      )}
 
       {/* Rest Timer - show prominently if active */}
       {showTimer && (

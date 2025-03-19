@@ -1,50 +1,119 @@
-// Updated ExerciseHistory.js with component library
+// Updated ExerciseHistory.js with offline support
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Loading, Alert } from './ui';
+import { getExerciseFromLocalStorage } from '../utils/offlineWorkoutStorage';
 
 const ExerciseHistory = ({ darkMode }) => {
   const { id } = useParams();
   const [history, setHistory] = useState([]);
   const [exerciseName, setExerciseName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
   const navigate = useNavigate();
+
+  // Track network status
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('ExerciseHistory is now online');
+      setIsOnline(true);
+    };
+    
+    const handleOffline = () => {
+      console.log('ExerciseHistory is now offline');
+      setIsOnline(false);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
         setLoading(true);
-        const user = JSON.parse(localStorage.getItem('user'));
-        const response = await fetch(`/api/exercises/${id}/history`, {
-          headers: {
-            'Authorization': `Bearer ${user.token}`,
-          },
-          credentials: 'include'
-        });
         
-        if (!response.ok) {
-          throw new Error('Failed to fetch history');
+        // Try to get from localStorage first for the exercise name
+        const localExercise = getExerciseFromLocalStorage(id);
+        if (localExercise) {
+          setExerciseName(localExercise.name);
         }
         
-        const data = await response.json();
-        setHistory(data);
-        
-        // If we have history items, set the exercise name from the first one
-        if (data.length > 0 && data[0].exerciseName) {
-          setExerciseName(data[0].exerciseName);
+        if (!isOnline) {
+          // Offline mode - check if history is in localStorage
+          if (localExercise && localExercise.history) {
+            console.log('Using locally stored exercise history (offline mode)');
+            setHistory(localExercise.history);
+          } else {
+            setHistory([]);
+            // Don't set an error, just show an empty state
+            console.log('No exercise history available offline');
+          }
+        } else {
+          // Online mode - try server first
+          try {
+            const user = JSON.parse(localStorage.getItem('user'));
+            const response = await fetch(`/api/exercises/${id}/history`, {
+              headers: {
+                'Authorization': `Bearer ${user.token}`,
+              },
+              credentials: 'include'
+            });
+            
+            if (!response.ok) {
+              throw new Error('Failed to fetch history');
+            }
+            
+            const data = await response.json();
+            setHistory(data);
+            
+            // If we have history items and don't have the exercise name yet
+            if (data.length > 0 && data[0].exerciseName && !exerciseName) {
+              setExerciseName(data[0].exerciseName);
+            }
+            
+            // If we have a local exercise, update its history
+            if (localExercise) {
+              localExercise.history = data;
+              localStorage.setItem(`exercise_${id}`, JSON.stringify(localExercise));
+            }
+          } catch (serverError) {
+            console.error('Server error, falling back to localStorage:', serverError);
+            
+            // Fall back to localStorage
+            if (localExercise && localExercise.history) {
+              console.log('Using locally stored exercise history');
+              setHistory(localExercise.history);
+            } else {
+              // If we can't get history from anywhere, show empty state
+              setHistory([]);
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching history:', error);
+        setError('Failed to load exercise history');
       } finally {
         setLoading(false);
       }
     };
 
     fetchHistory();
-  }, [id]);
+  }, [id, isOnline, exerciseName]);
 
   if (loading) {
     return <Loading text="Loading history..." />;
+  }
+
+  if (error) {
+    return <Alert type="error">{error}</Alert>;
   }
 
   return (
@@ -66,6 +135,13 @@ const ExerciseHistory = ({ darkMode }) => {
           <span>Back</span>
         </Button>
       </div>
+      
+      {/* Offline Warning - only if we need it */}
+      {!isOnline && history.length > 0 && (
+        <Alert type="info" className="mb-4">
+          You're currently offline. Showing cached exercise history.
+        </Alert>
+      )}
       
       <div className="space-y-6">
         {history.length === 0 ? (
