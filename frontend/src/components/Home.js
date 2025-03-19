@@ -219,6 +219,8 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
         // First complete the workout locally to ensure history is recorded
         completeWorkoutLocally();
         
+        console.log('Local workout completion done, syncing with server...');
+        
         // Then call the server's complete endpoint
         const user = JSON.parse(localStorage.getItem('user'));
         const response = await fetch('/api/workouts/complete', {
@@ -233,11 +235,13 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
           throw new Error('Failed to complete workout on server');
         }
   
+        console.log('Server workout completion successful');
+        
         // Check if there are any remaining changes to sync
         const modifiedExerciseIds = getModifiedExerciseIds();
         
         if (modifiedExerciseIds.length > 0) {
-          console.log(`Syncing ${modifiedExerciseIds.length} modified exercises...`);
+          console.log(`Syncing ${modifiedExerciseIds.length} modified exercises after workout completion...`);
           
           // Use our comprehensive sync utility
           const syncResult = await syncAllOfflineChanges(user.token);
@@ -250,9 +254,31 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
             setActionLoading(false);
             return; // Don't mark workout as ended if sync failed
           }
+          
+          console.log('Sync after workout completion successful');
         }
   
         showNotification('Workout completed and saved successfully');
+        
+        // Ensure we refresh the data after everything is synced
+        // This is crucial for history to be properly displayed
+        try {
+          console.log('Refreshing workout data after completion...');
+          const refreshResponse = await fetch('/api/workouts', {
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+            },
+            credentials: 'include'
+          });
+          
+          if (refreshResponse.ok) {
+            const refreshedData = await refreshResponse.json();
+            saveAllWorkoutsToLocalStorage(refreshedData);
+            console.log('Workout data refreshed successfully');
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh data after workout completion:', refreshError);
+        }
         
         // Force check for local changes
         setTimeout(checkForLocalChanges, 500);

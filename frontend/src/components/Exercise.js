@@ -623,6 +623,13 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
   
       // Update local state
       const updatedExercise = { ...exercise, sets: updatedSets };
+      
+      // VERY IMPORTANT: Make sure history isn't lost when updating the exercise
+      if (!updatedExercise.history && exercise.history) {
+        console.log(`Preserving existing history with ${exercise.history.length} entries`);
+        updatedExercise.history = exercise.history;
+      }
+      
       setExercise(updatedExercise);
       
       // Save to localStorage 

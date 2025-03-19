@@ -177,6 +177,23 @@ const cookieOptions = {
   maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
 };
 
+// Helper function to ensure proper data format for the history
+const createHistoryEntry = (sets, date = new Date()) => {
+  // Ensure we get a proper array of sets with weight and reps properties
+  const setData = sets.map(set => {
+    // Create a clean object with just weight and reps
+    return {
+      weight: typeof set.weight === 'number' ? set.weight : parseFloat(set.weight) || 0,
+      reps: typeof set.reps === 'number' ? set.reps : parseInt(set.reps) || 0
+    };
+  });
+  
+  return {
+    date: date,
+    sets: setData
+  };
+};
+
 // Add helper function to convert exercise name to ID
 const normalizeExerciseName = (name) => {
   return name.toLowerCase().trim().replace(/\s+/g, '_');
@@ -471,7 +488,7 @@ app.get('/api/exercises/:exerciseId', auth, async (req, res) => {
 app.patch('/api/exercises/:exerciseId', auth, async (req, res) => {
   try {
     const user = req.user;
-    const { sets } = req.body;
+    const { sets, history } = req.body; // Now accepting history in the request
     let exerciseUpdated = false;
 
     // Update the exercise in the user's workouts
@@ -479,7 +496,17 @@ app.patch('/api/exercises/:exerciseId', auth, async (req, res) => {
       workout.exercises = workout.exercises.map(exercise => {
         if (exercise._id.toString() === req.params.exerciseId) {
           exerciseUpdated = true;
-          return { ...exercise, sets };
+          
+          // Create updated exercise with the new sets
+          const updatedExercise = { ...exercise.toObject(), sets };
+          
+          // If history is provided, update the history as well
+          if (history) {
+            updatedExercise.history = history;
+            console.log(`Updating history for ${exercise.name}, entries: ${history.length}`);
+          }
+          
+          return updatedExercise;
         }
         return exercise;
       });
@@ -493,6 +520,7 @@ app.patch('/api/exercises/:exerciseId', auth, async (req, res) => {
     await user.save();
     res.json({ message: 'Exercise updated successfully' });
   } catch (error) {
+    console.error('Error updating exercise:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -536,25 +564,71 @@ app.patch('/api/exercises/:exerciseId/rest-time', auth, async (req, res) => {
 // Endpoint to get exercise history
 app.get('/api/exercises/:exerciseId/history', auth, async (req, res) => {
   try {
+    console.log(`Fetching history for exercise ID: ${req.params.exerciseId}`);
     const user = req.user;
     let exerciseHistory = null;
+    let exerciseName = null;
+    let exerciseFound = false;
 
+    // Search through all workouts to find the exercise
     for (const workout of user.workouts) {
       const exercise = workout.exercises.find(
         ex => ex._id.toString() === req.params.exerciseId
       );
+      
       if (exercise) {
+        exerciseFound = true;
+        exerciseName = exercise.name;
+        console.log(`Found exercise: ${exerciseName}`);
+        
+        // Initialize history if it doesn't exist
         exerciseHistory = exercise.history || [];
+        
+        console.log(`Exercise has ${exerciseHistory.length} history entries`);
         break;
       }
     }
 
-    if (exerciseHistory === null) {
+    if (!exerciseFound) {
+      console.log(`Exercise ${req.params.exerciseId} not found in user's workouts`);
       return res.status(404).json({ error: 'Exercise not found' });
     }
 
-    res.json(exerciseHistory);
+    // Sort history by date in descending order (most recent first)
+    exerciseHistory.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return dateB - dateA; // Descending order
+    });
+
+    // Format history entries to ensure they have all required properties
+    const formattedHistory = exerciseHistory.map(entry => {
+      // Create a properly formatted entry object
+      const formattedEntry = {
+        date: entry.date || new Date(),
+        exerciseName: exerciseName
+      };
+      
+      // Ensure sets are properly formatted
+      if (Array.isArray(entry.sets)) {
+        formattedEntry.sets = entry.sets.map(set => ({
+          weight: typeof set.weight === 'number' ? set.weight : parseFloat(set.weight) || 0,
+          reps: typeof set.reps === 'number' ? set.reps : parseInt(set.reps) || 0
+        }));
+      } else {
+        formattedEntry.sets = [];
+        console.log('Warning: History entry has no sets array');
+      }
+      
+      return formattedEntry;
+    });
+
+    console.log(`Returning ${formattedHistory.length} formatted history entries`);
+    
+    // Return the formatted history
+    res.json(formattedHistory);
   } catch (error) {
+    console.error('Error fetching exercise history:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -668,40 +742,67 @@ app.post('/api/workouts/reset', auth, async (req, res) => {
 // Endpoint to save workout history
 app.post('/api/workouts/complete', auth, async (req, res) => {
   try {
+    console.log('Processing workout completion for user:', req.user.email || 'unknown');
     const user = req.user;
     const currentDate = new Date();
-    
-    // Save history for completed sets before resetting
-    user.workouts = user.workouts.map(workout => {
-      workout.exercises = workout.exercises.map(exercise => {
+
+    let historyAdded = 0;
+    let exercisesProcessed = 0;
+
+    // Process each workout
+    for (const workout of user.workouts) {
+      console.log(`Processing workout day ${workout.day}`);
+      
+      // Process each exercise in the workout
+      for (const exercise of workout.exercises) {
+        exercisesProcessed++;
+        console.log(`- Processing exercise: ${exercise.name || 'unnamed'}`);
+        
+        // Get completed sets
         const completedSets = exercise.sets.filter(set => set.completed);
+        console.log(`  - Found ${completedSets.length} completed sets`);
+        
         if (completedSets.length > 0) {
+          // Create new history entry using helper function
+          const historyEntry = createHistoryEntry(completedSets, currentDate);
+          
+          // Initialize history array if it doesn't exist
           if (!exercise.history) {
+            console.log(`  - Creating new history array for ${exercise.name}`);
             exercise.history = [];
           }
-          exercise.history.push({
-            date: currentDate,
-            sets: completedSets.map(set => ({
-              weight: set.weight,
-              reps: set.reps
-            }))
-          });
+          
+          console.log(`  - Adding history entry with ${historyEntry.sets.length} sets`);
+          if (historyEntry.sets.length > 0) {
+            console.log(`  - First set: weight=${historyEntry.sets[0].weight}, reps=${historyEntry.sets[0].reps}`);
+          }
+          
+          // Add to history
+          exercise.history.push(historyEntry);
+          historyAdded++;
+          
+          // Reset sets to uncompleted
+          exercise.sets = exercise.sets.map(set => ({
+            ...set,
+            completed: false
+          }));
         }
-        
-        // Reset all sets to uncompleted
-        exercise.sets = exercise.sets.map(set => ({
-          ...set,
-          completed: false
-        }));
-        
-        return exercise;
-      });
-      return workout;
-    });
+      }
+    }
 
+    // Log a summary of what we did
+    console.log(`Completed workout processing: ${historyAdded} history entries added across ${exercisesProcessed} exercises`);
+
+    // Save the user with all updates
     await user.save();
-    res.json({ message: 'Workout completed and history saved successfully' });
+    
+    res.json({ 
+      message: 'Workout completed and history saved successfully',
+      historyAdded,
+      exercisesProcessed
+    });
   } catch (error) {
+    console.error('Error completing workout:', error);
     res.status(500).json({ error: error.message });
   }
 });

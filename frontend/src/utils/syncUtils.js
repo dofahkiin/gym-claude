@@ -202,7 +202,14 @@ const refreshAllDataFromServer = async (token) => {
         
         console.log(`Syncing exercise ${exerciseId}: ${exercise.name}`);
         
-        // Sync the exercise data (sets, etc.)
+        // Log history information for debugging
+        if (exercise.history && exercise.history.length > 0) {
+          console.log(`Exercise has ${exercise.history.length} history entries to sync`);
+        } else {
+          console.log(`Exercise has no history entries to sync`);
+        }
+        
+        // Sync the exercise data (sets AND history)
         const response = await fetch(`/api/exercises/${exerciseId}`, {
           method: 'PATCH',
           headers: {
@@ -211,18 +218,17 @@ const refreshAllDataFromServer = async (token) => {
           },
           body: JSON.stringify({ 
             sets: exercise.sets,
-            // Unfortunately, we can't include history here due to API limitations
+            history: exercise.history // Now including history in the update
           }),
           credentials: 'include'
         });
         
         if (!response.ok) {
-          throw new Error(`Failed with status ${response.status}`);
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Failed with status ${response.status}`);
         }
         
         console.log(`Exercise ${exerciseId} synced successfully`);
-        
-        // We don't need to remove from localStorage here - we'll do a global cleanup later
         results.exercises.success++;
       } catch (error) {
         console.error(`Failed to sync exercise ${exerciseId}:`, error);

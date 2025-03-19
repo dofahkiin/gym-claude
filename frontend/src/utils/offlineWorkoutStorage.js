@@ -6,7 +6,34 @@
  * @param {Object} exercise - The exercise object to save
  */
 export const saveExerciseToLocalStorage = (exercise) => {
-  if (!exercise || !exercise._id) return;
+  if (!exercise || !exercise._id) {
+    console.error('Invalid exercise data:', exercise);
+    return;
+  }
+  
+  console.log(`Saving exercise to localStorage: ${exercise._id}`, {
+    name: exercise.name,
+    sets: exercise.sets?.length || 0,
+    hasHistory: !!exercise.history,
+    historyEntries: exercise.history?.length || 0
+  });
+  
+  // Before saving, verify that we're not accidentally removing history
+  const existingData = localStorage.getItem(`exercise_${exercise._id}`);
+  if (existingData) {
+    try {
+      const existingExercise = JSON.parse(existingData);
+      
+      // If the new exercise doesn't have history but the existing one does,
+      // preserve the existing history
+      if (!exercise.history && existingExercise.history && existingExercise.history.length > 0) {
+        console.log(`Preserving existing history with ${existingExercise.history.length} entries`);
+        exercise.history = existingExercise.history;
+      }
+    } catch (error) {
+      console.error('Error parsing existing exercise data:', error);
+    }
+  }
   
   // Save the exercise data
   localStorage.setItem(`exercise_${exercise._id}`, JSON.stringify(exercise));
@@ -24,45 +51,89 @@ export const saveExerciseToLocalStorage = (exercise) => {
  * This will reset all set completion flags and save workout history
  */
 export const completeWorkoutLocally = () => {
+  console.log('Starting local workout completion process...');
+  
   // Get active workout flag
   const isWorkoutActive = localStorage.getItem('isWorkoutActive') === 'true';
-  if (!isWorkoutActive) return; // Nothing to do
+  if (!isWorkoutActive) {
+    console.log('No active workout to complete');
+    return; // Nothing to do
+  }
   
   // Get all modified exercise IDs
   const modifiedExerciseIds = getModifiedExerciseIds();
+  console.log(`Found ${modifiedExerciseIds.length} modified exercises to process`);
+  
   const currentDate = new Date();
   
   // For each modified exercise, record history and reset completion
   for (const exerciseId of modifiedExerciseIds) {
     const exercise = getExerciseFromLocalStorage(exerciseId);
-    if (!exercise) continue;
+    if (!exercise) {
+      console.log(`Exercise ${exerciseId} not found in localStorage, skipping`);
+      continue;
+    }
+    
+    console.log(`Processing exercise ${exerciseId}: ${exercise.name}`);
     
     // Check if any sets are completed
     const completedSets = exercise.sets.filter(set => set.completed);
+    console.log(`Found ${completedSets.length} completed sets`);
+    
     if (completedSets.length > 0) {
-      // Add to history
+      // Initialize history array if it doesn't exist
       if (!exercise.history) {
+        console.log('Creating new history array for exercise');
         exercise.history = [];
+      } else {
+        console.log(`Exercise already has ${exercise.history.length} history entries`);
       }
       
-      exercise.history.push({
+      // CRITICAL CHANGE: Create properly structured set objects WITHOUT the completed property
+      const setData = [];
+      for (const set of completedSets) {
+        // Create a simple object with just weight and reps
+        const newSet = {
+          weight: typeof set.weight === 'number' ? set.weight : parseFloat(set.weight) || 0,
+          reps: typeof set.reps === 'number' ? set.reps : parseInt(set.reps) || 0
+        };
+        setData.push(newSet);
+      }
+      
+      // Add new history entry with properly structured sets
+      const historyEntry = {
         date: currentDate,
-        sets: completedSets.map(set => ({
-          weight: set.weight,
-          reps: set.reps
-        }))
-      });
+        sets: setData
+      };
+      
+      console.log(`Adding new history entry with ${setData.length} sets`);
+      if (setData.length > 0) {
+        console.log(`First set: weight=${setData[0].weight}, reps=${setData[0].reps}`);
+      }
+      
+      exercise.history.push(historyEntry);
+      console.log(`Exercise now has ${exercise.history.length} history entries`);
       
       // Reset completion status
-      exercise.sets = exercise.sets.map(set => ({
+      const updatedSets = exercise.sets.map(set => ({
         ...set,
         completed: false
       }));
       
+      const updatedExercise = {
+        ...exercise,
+        sets: updatedSets
+      };
+      
       // Save updated exercise
-      saveExerciseToLocalStorage(exercise);
+      console.log('Saving updated exercise with new history');
+      saveExerciseToLocalStorage(updatedExercise);
+    } else {
+      console.log('No completed sets, skipping history recording');
     }
   }
+  
+  console.log('Local workout completion finished');
   
   // Mark workout as inactive
   localStorage.setItem('isWorkoutActive', 'false');
