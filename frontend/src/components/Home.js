@@ -58,8 +58,10 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
   
   // Check if there are pending local changes
   const checkForLocalChanges = () => {
-    // Use our comprehensive helper from syncUtils
-    setHasLocalChanges(hasPendingChanges());
+    console.log('Checking for local changes...');
+    const hasChanges = hasPendingChanges();
+    console.log('Local changes detected:', hasChanges);
+    setHasLocalChanges(hasChanges);
   };
   
   // Fetch the user's active program
@@ -198,7 +200,7 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
         
         if (!isOnline) {
           // Offline mode - use local completion
-          completeWorkoutLocally(); // This new function handles workout completion locally
+          completeWorkoutLocally(); // This function handles workout completion locally
           setIsWorkoutActive(false);
           localStorage.setItem('isWorkoutActive', 'false');
           showNotification('Workout ended. Changes saved locally and will sync when youre online.', 'success');
@@ -206,37 +208,18 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
           
           // Make sure we set hasLocalChanges to true
           setHasLocalChanges(true);
+          
+          // Force check for local changes
+          setTimeout(checkForLocalChanges, 500);
           return;
         }
         
-        // Check if there are modified exercises to sync
-        const modifiedExerciseIds = getModifiedExerciseIds();
+        // Online mode - sync directly with server
         
-        if (modifiedExerciseIds.length > 0) {
-          console.log(`Syncing ${modifiedExerciseIds.length} modified exercises...`);
-          
-          // Get user token
-          const user = JSON.parse(localStorage.getItem('user'));
-          
-          if (!user || !user.token) {
-            throw new Error('User not authenticated');
-          }
-          
-          // Sync all modified exercises with the server
-          const syncResult = await syncModifiedExercisesWithServer(user.token);
-          
-          if (!syncResult.success) {
-            console.error('Sync failed:', syncResult);
-            setSyncError(syncResult);
-            setShowSyncDialog(true);
-            setActionLoading(false);
-            return; // Stop here if sync failed
-          }
-          
-          console.log('Sync successful:', syncResult);
-        }
+        // First complete the workout locally to ensure history is recorded
+        completeWorkoutLocally();
         
-        // Now complete the workout and save history
+        // Then call the server's complete endpoint
         const user = JSON.parse(localStorage.getItem('user'));
         const response = await fetch('/api/workouts/complete', {
           method: 'POST',
@@ -247,16 +230,38 @@ const Home = ({ isWorkoutActive, setIsWorkoutActive, darkMode }) => {
         });
   
         if (!response.ok) {
-          throw new Error('Failed to complete workout');
+          throw new Error('Failed to complete workout on server');
+        }
+  
+        // Check if there are any remaining changes to sync
+        const modifiedExerciseIds = getModifiedExerciseIds();
+        
+        if (modifiedExerciseIds.length > 0) {
+          console.log(`Syncing ${modifiedExerciseIds.length} modified exercises...`);
+          
+          // Use our comprehensive sync utility
+          const syncResult = await syncAllOfflineChanges(user.token);
+          
+          if (!syncResult.success) {
+            console.error('Sync failed:', syncResult);
+            setSyncError(syncResult);
+            setShowSyncDialog(true);
+            setHasLocalChanges(true);
+            setActionLoading(false);
+            return; // Don't mark workout as ended if sync failed
+          }
         }
   
         showNotification('Workout completed and saved successfully');
-        checkForLocalChanges(); // Update local changes status
+        
+        // Force check for local changes
+        setTimeout(checkForLocalChanges, 500);
       } catch (error) {
         console.error('Error completing workout:', error);
         showNotification('Failed to save workout data. Your changes are still saved locally.', 'error');
         setShowSyncDialog(true);
         setActionLoading(false);
+        setHasLocalChanges(true);
         return; // Don't set workout to inactive if saving failed
       }
     }
@@ -277,6 +282,7 @@ const handleSyncClick = async () => {
   
   try {
     setSyncLoading(true);
+    showNotification('Syncing changes...', 'info');
     
     // Get user token
     const user = JSON.parse(localStorage.getItem('user'));
@@ -284,6 +290,8 @@ const handleSyncClick = async () => {
     if (!user || !user.token) {
       throw new Error('User not authenticated');
     }
+    
+    console.log('Starting sync process...');
     
     // Use our comprehensive sync utility
     const syncResult = await syncAllOfflineChanges(user.token);
@@ -294,14 +302,15 @@ const handleSyncClick = async () => {
       setShowSyncDialog(true);
       showNotification('Some changes failed to sync. See details for more information.', 'warning');
     } else {
+      console.log('Sync completed successfully');
       showNotification('All changes synced successfully!', 'success');
       
       // Refresh workouts
       await fetchWorkouts();
-      
-      // Update local changes status
-      checkForLocalChanges();
     }
+    
+    // Force a check for local changes
+    setTimeout(checkForLocalChanges, 500);
   } catch (error) {
     console.error('Error during sync:', error);
     showNotification('Failed to sync changes. Please try again later.', 'error');

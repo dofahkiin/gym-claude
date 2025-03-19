@@ -126,15 +126,32 @@ export const getModifiedExerciseIds = () => {
  * Clear all modified exercises tracking
  */
 export const clearAllModifiedExercises = () => {
+  console.log('Clearing all modified exercise tracking...');
+  
   const modifiedExercises = getModifiedExerciseIds();
+  console.log(`Found ${modifiedExercises.length} modified exercises to clear`);
   
   // Clear each exercise storage
   modifiedExercises.forEach(id => {
     localStorage.removeItem(`exercise_${id}`);
+    
+    // Also clear any timers or notifications associated with this exercise
+    localStorage.removeItem(`timer_${id}`);
+    localStorage.removeItem(`notification_${id}`);
   });
   
   // Clear the modified list
   localStorage.removeItem('modified_exercises');
+  
+  // Clear global timer data
+  localStorage.removeItem('global_rest_timer_start');
+  localStorage.removeItem('global_rest_timer_duration');
+  localStorage.removeItem('global_notification_id');
+  
+  // Clear temp exercises
+  localStorage.removeItem('temp_exercises');
+  
+  console.log('All modified exercise data cleared');
 };
 
 /**

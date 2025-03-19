@@ -1,11 +1,12 @@
-// utils/syncUtils.js
+// src/utils/syncUtils.js
 import { 
     getModifiedExerciseIds, 
     getExerciseFromLocalStorage, 
     clearExerciseFromLocalStorage,
     getModifiedWorkoutDays,
     getAllWorkoutsFromLocalStorage,
-    saveAllWorkoutsToLocalStorage
+    saveAllWorkoutsToLocalStorage,
+    clearAllModifiedExercises
   } from './offlineWorkoutStorage';
   
   /**
@@ -31,23 +32,39 @@ import {
     }
     
     try {
-      // 1. Sync modified exercises
+      console.log('Starting sync process...');
+      
+      // 1. First we need to call the workout complete endpoint to record history
+      await completeWorkoutOnServer(token, results);
+      
+      // 2. Sync modified exercises
       await syncModifiedExercises(token, results);
       
-      // 2. Sync temp exercises created offline
+      // 3. Sync temp exercises created offline
       await syncTempExercises(token, results);
       
-      // 3. Sync deleted items
+      // 4. Sync deleted items
       await syncDeletedItems(token, results);
       
-      // 4. Sync modified workout days
+      // 5. Sync modified workout days
       await syncModifiedWorkoutDays(token, results);
+      
+      // 6. Refresh all data from server
+      await refreshAllDataFromServer(token);
+      
+      // Clear all modified exercise tracking
+      clearAllModifiedExercises();
+      
+      // Clear modified workout days
+      localStorage.removeItem('modified_workout_days');
       
       // Set overall success based on results
       results.success = results.exercises.failed === 0 && 
                         results.workoutDays.failed === 0 && 
                         results.tempExercises.failed === 0 && 
                         results.deletedItems.failed === 0;
+      
+      console.log('Sync completed with results:', results);
       
       return results;
     } catch (error) {
@@ -59,7 +76,101 @@ import {
       };
     }
   };
+
+  /**
+ * Complete workout on server to record history
+ * @param {string} token - User auth token
+ * @param {Object} results - Results object to update
+ */
+const completeWorkoutOnServer = async (token, results) => {
+    try {
+      console.log('Completing workout on server to record history...');
+      
+      // Check if there are any exercises with history to sync
+      const modifiedIds = getModifiedExerciseIds();
+      let hasHistoryToSync = false;
+      
+      for (const exerciseId of modifiedIds) {
+        const exercise = getExerciseFromLocalStorage(exerciseId);
+        if (exercise && exercise.history && exercise.history.length > 0) {
+          hasHistoryToSync = true;
+          break;
+        }
+      }
+      
+      if (!hasHistoryToSync) {
+        console.log('No history to sync, skipping workout completion');
+        return;
+      }
+      
+      // Call the workout complete endpoint
+      const response = await fetch('/api/workouts/complete', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to complete workout on server (${response.status})`);
+      }
+      
+      console.log('Workout completed successfully on server');
+    } catch (error) {
+      console.error('Error completing workout on server:', error);
+      // Don't fail the entire sync process if this fails
+    }
+  };
   
+/**
+ * Refresh all data from server
+ * @param {string} token - User auth token
+ */
+const refreshAllDataFromServer = async (token) => {
+    try {
+      console.log('Refreshing all data from server...');
+      
+      // Refresh workouts
+      const workoutsResponse = await fetch('/api/workouts', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include'
+      });
+      
+      if (workoutsResponse.ok) {
+        const workoutsData = await workoutsResponse.json();
+        saveAllWorkoutsToLocalStorage(workoutsData);
+        console.log('Workouts refreshed from server');
+      }
+      
+      // We should also refresh each exercise that we've modified
+      const modifiedIds = getModifiedExerciseIds();
+      
+      for (const exerciseId of modifiedIds) {
+        try {
+          const response = await fetch(`/api/exercises/${exerciseId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+            credentials: 'include'
+          });
+          
+          if (response.ok) {
+            const exerciseData = await response.json();
+            // No need to save to localStorage since we're clearing everything
+          }
+        } catch (exerciseError) {
+          console.warn(`Failed to refresh exercise ${exerciseId}:`, exerciseError);
+          // Continue with the next exercise
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing data from server:', error);
+    }
+  };
+
   /**
  * Sync modified exercises
  * @param {string} token - User auth token
@@ -68,6 +179,8 @@ import {
   const syncModifiedExercises = async (token, results) => {
     const modifiedIds = getModifiedExerciseIds();
     results.exercises.total = modifiedIds.length;
+    
+    console.log(`Syncing ${modifiedIds.length} modified exercises...`);
     
     for (const exerciseId of modifiedIds) {
       try {
@@ -87,14 +200,19 @@ import {
           continue;
         }
         
-        // First sync the exercise data (sets, etc.)
+        console.log(`Syncing exercise ${exerciseId}: ${exercise.name}`);
+        
+        // Sync the exercise data (sets, etc.)
         const response = await fetch(`/api/exercises/${exerciseId}`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ sets: exercise.sets }),
+          body: JSON.stringify({ 
+            sets: exercise.sets,
+            // Unfortunately, we can't include history here due to API limitations
+          }),
           credentials: 'include'
         });
         
@@ -102,16 +220,9 @@ import {
           throw new Error(`Failed with status ${response.status}`);
         }
         
-        // Then sync history if needed
-        if (exercise.history && exercise.history.length > 0) {
-          const historySuccess = await syncExerciseHistory(token, exercise, exerciseId);
-          if (!historySuccess) {
-            console.warn(`Exercise synced but history failed for ${exerciseId}`);
-          }
-        }
+        console.log(`Exercise ${exerciseId} synced successfully`);
         
-        // Success! Remove from local storage
-        clearExerciseFromLocalStorage(exerciseId);
+        // We don't need to remove from localStorage here - we'll do a global cleanup later
         results.exercises.success++;
       } catch (error) {
         console.error(`Failed to sync exercise ${exerciseId}:`, error);
@@ -388,11 +499,22 @@ import {
     const deletedExercises = JSON.parse(localStorage.getItem('deleted_exercises') || '[]');
     const deletedDays = JSON.parse(localStorage.getItem('deleted_workout_days') || '[]');
     
-    return modifiedExercises.length > 0 || 
-           modifiedDays.length > 0 || 
-           tempExercises.length > 0 || 
-           deletedExercises.length > 0 || 
-           deletedDays.length > 0;
+    const hasChanges = modifiedExercises.length > 0 || 
+                      modifiedDays.length > 0 || 
+                      tempExercises.length > 0 || 
+                      deletedExercises.length > 0 || 
+                      deletedDays.length > 0;
+    
+    console.log('Checking for pending changes:', {
+      modifiedExercises: modifiedExercises.length,
+      modifiedDays: modifiedDays.length,
+      tempExercises: tempExercises.length,
+      deletedExercises: deletedExercises.length,
+      deletedDays: deletedDays.length,
+      hasChanges
+    });
+    
+    return hasChanges;
   };
 
   /**
