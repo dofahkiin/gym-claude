@@ -1,4 +1,4 @@
-// Updated App.js with network status handling
+// Modified App.js with load signaling
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import Login from './components/Login';
@@ -24,6 +24,33 @@ const App = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
+
+  // Signal that React has loaded
+  useEffect(() => {
+    // Dispatch event to notify that React has loaded
+    document.dispatchEvent(new Event('reactLoaded'));
+    
+    // Pre-fetch critical resources for common navigation paths
+    if ('caches' in window) {
+      const urls = [
+        '/api/workouts',
+        '/api/user/active-program'
+      ];
+      
+      caches.open('gymtracker-prefetch')
+        .then(cache => {
+          urls.forEach(url => {
+            fetch(url, { credentials: 'include' })
+              .then(response => {
+                if (response.ok) {
+                  cache.put(url, response);
+                }
+              })
+              .catch(err => console.log('Prefetch failed:', err));
+          });
+        });
+    }
+  }, []);
 
   // Check for local changes
   useEffect(() => {
@@ -71,6 +98,19 @@ const App = () => {
 
     const checkAuthStatus = async () => {
       try {
+        // First try to get user from localStorage for immediate display
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+          
+          // Initialize notifications early for better UX
+          initializeNotifications().then(success => {
+            if (success) {
+              console.log('Push notifications initialized successfully');
+            }
+          });
+        }
+      
         // Check for auth status via cookie
         const response = await fetch('/api/auth/check', {
           credentials: 'include' // Important to include cookies
@@ -83,33 +123,16 @@ const App = () => {
             // Also update localStorage for backward compatibility
             localStorage.setItem('user', JSON.stringify(data.user));
 
-            // Add this: Initialize notifications after authentication
+            // Initialize notifications after authentication
             initializeNotifications().then(success => {
-            if (success) {
-              console.log('Push notifications initialized successfully');
-            }
-          });
-          } else {
-            // Fallback to localStorage if cookie auth fails
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) {
-              setUser(JSON.parse(storedUser));
-            }
-          }
-        } else {
-          // If endpoint fails, try localStorage as fallback
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
+              if (success) {
+                console.log('Push notifications initialized successfully');
+              }
+            });
           }
         }
       } catch (error) {
         console.error('Auth check error:', error);
-        // Try localStorage as fallback
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
       } finally {
         setLoading(false);
       }
@@ -134,17 +157,7 @@ const App = () => {
   };
 
   if (loading) {
-    return (
-      <div className="app-container flex items-center justify-center">
-        <div className="text-xl font-semibold text-gray-700 dark:text-gray-200">
-          <svg className="loading-spinner -ml-1 mr-3 h-8 w-8 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          Loading...
-        </div>
-      </div>
-    );
+    return null; // Return nothing, the app shell will show loading spinner
   }
 
   return (
