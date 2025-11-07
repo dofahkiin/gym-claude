@@ -328,16 +328,16 @@ const handleSyncClick = async () => {
     // Use our comprehensive sync utility
     const syncResult = await syncAllOfflineChanges(user.token);
     
-    // Force clear all tracking data regardless of sync result
-    localStorage.removeItem('modified_exercises');
-    localStorage.removeItem('modified_workout_days');
-    localStorage.removeItem('temp_exercises');
-    localStorage.removeItem('deleted_exercises');
-    localStorage.removeItem('deleted_workout_days');
-    localStorage.removeItem('new_workout_days');
-    
-    // Force update UI state immediately
-    setHasLocalChanges(false);
+    if (syncResult.success) {
+      // Clear tracking data once server confirms sync
+      localStorage.removeItem('modified_exercises');
+      localStorage.removeItem('modified_workout_days');
+      localStorage.removeItem('temp_exercises');
+      localStorage.removeItem('deleted_exercises');
+      localStorage.removeItem('deleted_workout_days');
+      localStorage.removeItem('new_workout_days');
+      setHasLocalChanges(false);
+    }
     
     if (!syncResult.success) {
       console.error('Sync failed:', syncResult);
@@ -354,15 +354,6 @@ const handleSyncClick = async () => {
   } catch (error) {
     console.error('Error during sync:', error);
     showNotification('Failed to sync changes. Please try again later.', 'error');
-    
-    // Still clear flags even on error
-    localStorage.removeItem('modified_exercises');
-    localStorage.removeItem('modified_workout_days');
-    localStorage.removeItem('temp_exercises');
-    localStorage.removeItem('deleted_exercises');
-    localStorage.removeItem('deleted_workout_days');
-    localStorage.removeItem('new_workout_days');
-    setHasLocalChanges(false);
   } finally {
     setSyncLoading(false);
   }

@@ -11,6 +11,10 @@ import {
   markWorkoutDayAsModified
 } from '../utils/offlineWorkoutStorage';
 
+const buildDefaultSets = (count = 3, reps = 10) => (
+  Array.from({ length: count }, () => ({ weight: 0, reps, completed: false }))
+);
+
 const WorkoutDay = ({ darkMode }) => {
   const { day } = useParams();
   const [workout, setWorkout] = useState(null);
@@ -227,7 +231,7 @@ const WorkoutDay = ({ darkMode }) => {
       // Create new exercise data
       const newExercise = {
         name: exerciseName,
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+        sets: buildDefaultSets()
       };
       
       if (isOnline) {
@@ -298,7 +302,7 @@ const WorkoutDay = ({ darkMode }) => {
     const newExercise = {
       _id: tempId, // This will be replaced with a real ID when synced
       name: exerciseName,
-      sets: Array(3).fill({ weight: 0, reps: 10, completed: false })
+      sets: buildDefaultSets()
     };
     
     // Update workout in memory

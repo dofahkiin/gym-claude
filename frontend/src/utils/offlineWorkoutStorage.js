@@ -263,7 +263,8 @@ export const syncModifiedExercisesWithServer = async (token) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sets: exerciseData.sets
+          sets: exerciseData.sets,
+          history: exerciseData.history || []
         }),
         credentials: 'include'
       });

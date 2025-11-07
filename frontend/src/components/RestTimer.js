@@ -9,11 +9,22 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
+    // If no timer is running, reset to full duration
+    if (!startTime) {
+      setTimeLeft(duration);
+      setProgress(100);
+      return;
+    }
+
     // This updates the timer display when duration prop changes
     setTimeLeft(Math.max(duration - ((Date.now() - startTime) / 1000), 0));
   }, [duration, startTime]);
 
   useEffect(() => {
+    if (!startTime) {
+      return undefined;
+    }
+
     const timer = setInterval(() => {
       const currentTime = Date.now();
       const elapsedTime = (currentTime - startTime) / 1000;

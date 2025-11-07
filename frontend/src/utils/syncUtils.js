@@ -14,6 +14,15 @@ import {
    * @param {string} token - User auth token
    * @returns {Promise<Object>} Result of sync operation
    */
+  const clearTrackingState = () => {
+    clearAllModifiedExercises();
+    localStorage.removeItem('modified_workout_days');
+    localStorage.removeItem('temp_exercises');
+    localStorage.removeItem('deleted_exercises');
+    localStorage.removeItem('deleted_workout_days');
+    localStorage.removeItem('new_workout_days');
+  };
+
   export const syncAllOfflineChanges = async (token) => {
     const results = {
       success: true,
@@ -52,25 +61,19 @@ import {
       // 6. Refresh all data from server
       await refreshAllDataFromServer(token);
       
-      // Regardless of success or failure, clear all tracking data
-      clearAllModifiedExercises();
-      localStorage.removeItem('modified_workout_days');
-      localStorage.removeItem('temp_exercises');
-      localStorage.removeItem('deleted_exercises');
-      localStorage.removeItem('deleted_workout_days');
-      localStorage.removeItem('new_workout_days');
-      
       // Set overall success based on results
       results.success = results.exercises.failed === 0 && 
                         results.workoutDays.failed === 0 && 
                         results.tempExercises.failed === 0 && 
                         results.deletedItems.failed === 0;
       
-      // Check if data is actually synced by forcing a check
+      // Check if data is actually synced by forcing a check before clearing local tracking
       const pendingChanges = hasPendingChanges();
       if (pendingChanges) {
         console.warn('Some pending changes could not be synced');
-        results.warning = 'Some changes could not be synced but tracking has been reset';
+        results.warning = 'Some changes could not be synced yet. Data has been left in offline storage so you can retry.';
+      } else if (results.success) {
+        clearTrackingState();
       }
       
       console.log('Sync completed with results:', results);
@@ -78,14 +81,6 @@ import {
       return results;
     } catch (error) {
       console.error('Sync failed:', error);
-      
-      // Even on error, clear tracking data to avoid persistent messages
-      clearAllModifiedExercises();
-      localStorage.removeItem('modified_workout_days');
-      localStorage.removeItem('temp_exercises');
-      localStorage.removeItem('deleted_exercises');
-      localStorage.removeItem('deleted_workout_days');
-      localStorage.removeItem('new_workout_days');
       
       return {
         success: false,

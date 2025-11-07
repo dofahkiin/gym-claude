@@ -3,7 +3,7 @@
 // Cache names
 const STATIC_CACHE_NAME = 'gymtracker-static-v1';
 const DYNAMIC_CACHE_NAME = 'gymtracker-dynamic-v1';
-const API_CACHE_NAME = 'gymtracker-api-v1';
+const VALID_CACHE_NAMES = [STATIC_CACHE_NAME, DYNAMIC_CACHE_NAME];
 
 // Resources to cache immediately during installation
 const APP_SHELL = [
@@ -45,7 +45,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then(keyList => {
         return Promise.all(keyList.map(key => {
-          if (![STATIC_CACHE_NAME, DYNAMIC_CACHE_NAME, API_CACHE_NAME].includes(key)) {
+          if (!VALID_CACHE_NAMES.includes(key)) {
             console.log('[Service Worker] Removing old cache', key);
             return caches.delete(key);
           }
@@ -67,9 +67,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle API requests (stale-while-revalidate strategy)
+  // Authenticated API responses contain user-specific data and should never be cached.
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(handleApiRequest(event.request));
+    event.respondWith(fetch(event.request));
     return;
   }
   
@@ -145,32 +145,6 @@ async function handleNavigationRequest(request) {
     // If nothing in cache, try to return the index page
     return caches.match('/gym/index.html');
   }
-}
-
-// Stale-while-revalidate for API requests
-async function handleApiRequest(request) {
-  // Only cache GET requests
-  if (request.method !== 'GET') {
-    return fetch(request);
-  }
-  
-  // Try to get from cache first
-  const cachedResponse = await caches.match(request);
-  
-  // Fetch from network and update cache in the background
-  const networkResponsePromise = fetch(request).then(async response => {
-    if (response.ok) {
-      const cache = await caches.open(API_CACHE_NAME);
-      await cache.put(request, response.clone());
-    }
-    return response;
-  }).catch(error => {
-    console.error('[Service Worker] Error fetching API:', error);
-    throw error;
-  });
-  
-  // Return cached response immediately if available, otherwise wait for network
-  return cachedResponse || networkResponsePromise;
 }
 
 // Handle push events (when a notification is received)

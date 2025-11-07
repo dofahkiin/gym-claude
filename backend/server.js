@@ -60,111 +60,59 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+const createSetArray = (count = 3, reps = 10) => (
+  Array.from({ length: count }, () => ({
+    weight: 0,
+    reps,
+    completed: false
+  }))
+);
+
+const normalizeClientSets = (incomingSets, fallbackCount = 3, fallbackReps = 10) => {
+  if (Array.isArray(incomingSets) && incomingSets.length > 0) {
+    return incomingSets.map(set => ({
+      weight: typeof set.weight === 'number' ? set.weight : parseFloat(set.weight) || 0,
+      reps: typeof set.reps === 'number' ? set.reps : parseInt(set.reps, 10) || 0,
+      completed: !!set.completed
+    }));
+  }
+
+  return createSetArray(fallbackCount, fallbackReps);
+};
+
 // Default workout data
 const defaultWorkouts = [
   {
     day: 1,
     exercises: [
-      {
-        name: "Smith Machine Bench Press",
-        sets: Array(3).fill({ weight: 0, reps: 8, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Machine Lat Pulldown",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Machine Leg Curl",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Machine Shoulder Press",
-        sets: Array(2).fill({ weight: 0, reps: 8, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Dumbbell Alternating Incline Curl",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Cable Tricep Pushdown (Rope)",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Barbell Bulgarian Split Squat",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      }
+      { name: "Smith Machine Bench Press", sets: createSetArray(3, 8), restTime: 90 },
+      { name: "Machine Lat Pulldown", sets: createSetArray(3, 10), restTime: 90 },
+      { name: "Machine Leg Curl", sets: createSetArray(3, 10), restTime: 90 },
+      { name: "Machine Shoulder Press", sets: createSetArray(2, 8), restTime: 90 },
+      { name: "Dumbbell Alternating Incline Curl", sets: createSetArray(2, 10), restTime: 90 },
+      { name: "Cable Tricep Pushdown (Rope)", sets: createSetArray(2, 10), restTime: 90 },
+      { name: "Barbell Bulgarian Split Squat", sets: createSetArray(3, 10), restTime: 90 }
     ]
   },
   {
     day: 2,
     exercises: [
-      {
-        name: "Machine Incline Chest Press",
-        sets: Array(3).fill({ weight: 0, reps: 8, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Cable Seated Row",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Machine Leg Press",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Dumbbell Lateral Raise",
-        sets: Array(2).fill({ weight: 0, reps: 15, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Dumbbell Hammer Curl",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Barbell Seated Tricep Extension",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      }
+      { name: "Machine Incline Chest Press", sets: createSetArray(3, 8), restTime: 90 },
+      { name: "Cable Seated Row", sets: createSetArray(3, 10), restTime: 90 },
+      { name: "Machine Leg Press", sets: createSetArray(3, 10), restTime: 90 },
+      { name: "Dumbbell Lateral Raise", sets: createSetArray(2, 15), restTime: 90 },
+      { name: "Dumbbell Hammer Curl", sets: createSetArray(2, 10), restTime: 90 },
+      { name: "Barbell Seated Tricep Extension", sets: createSetArray(2, 10), restTime: 90 }
     ]
   },
   {
     day: 3,
     exercises: [
-      {
-        name: "Machine Leg Extension",
-        sets: Array(3).fill({ weight: 0, reps: 15, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Machine Seated Leg Curl",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Barbell Preacher Curl",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Ez Bar Tricep Extension",
-        sets: Array(2).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      },
-      {
-        name: "Barbell Bulgarian Split Squat",
-        sets: Array(3).fill({ weight: 0, reps: 10, completed: false }),
-        restTime: 90
-      }
+      { name: "Machine Leg Extension", sets: createSetArray(3, 15), restTime: 90 },
+      { name: "Machine Seated Leg Curl", sets: createSetArray(3, 10), restTime: 90 },
+      { name: "Barbell Preacher Curl", sets: createSetArray(2, 10), restTime: 90 },
+      { name: "Ez Bar Tricep Extension", sets: createSetArray(2, 10), restTime: 90 },
+      { name: "Barbell Bulgarian Split Squat", sets: createSetArray(3, 10), restTime: 90 }
     ]
   }
 ];
@@ -323,8 +271,7 @@ app.get('/api/auth/check', async (req, res) => {
     res.json({ 
       authenticated: true, 
       user: { 
-        email: user.email,
-        token // Include token in response for client-side storage
+        email: user.email
       } 
     });
   } catch (error) {
@@ -371,6 +318,10 @@ app.get('/api/workouts', auth, async (req, res) => {
 
 app.get('/api/workouts/:day', auth, async (req, res) => {
   const workout = req.user.workouts.find(w => w.day === parseInt(req.params.day));
+  if (!workout) {
+    return res.status(404).json({ error: 'Workout day not found' });
+  }
+
   res.json(workout);
 });
 
@@ -403,9 +354,9 @@ app.post('/api/workouts/:day/exercises', auth, async (req, res) => {
     // Create the new exercise
     const newExercise = {
       name,
-      sets: sets || Array(3).fill({ weight: 0, reps: 10, completed: false }),
+      sets: normalizeClientSets(sets),
       history: [],
-      restTime: restTime || defaultRestTime // Use provided rest time or default
+      restTime: typeof restTime === 'number' ? restTime : defaultRestTime // Use provided rest time or default
     };
     
     // Add the exercise to the workout
@@ -904,11 +855,7 @@ app.post('/api/workouts/apply-program', auth, async (req, res) => {
       for (const exerciseData of workout.exercises) {
         const newExercise = {
           name: exerciseData.name,
-          sets: Array(exerciseData.sets).fill({
-            weight: 0,
-            reps: exerciseData.reps,
-            completed: false
-          }),
+          sets: createSetArray(exerciseData.sets, exerciseData.reps),
           history: [], // Initialize with empty history
           restTime: exerciseData.restTime || program.defaultRestTime || 90 // Use exercise-specific rest time, program default, or fallback to 90s
         };
