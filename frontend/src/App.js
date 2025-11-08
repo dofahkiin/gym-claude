@@ -55,12 +55,16 @@ const App = () => {
   // Check for local changes
   useEffect(() => {
     const checkLocalChanges = () => {
-      const modifiedExercises = getModifiedExerciseIds();
+      const modifiedExercises = getModifiedExerciseIds() || [];
       setHasLocalChanges(modifiedExercises.length > 0);
     };
     
     // Check on mount
     checkLocalChanges();
+
+    if (process.env.NODE_ENV === 'test') {
+      return undefined;
+    }
     
     // Setup periodic check
     const intervalId = setInterval(checkLocalChanges, 10000); // Check every 10 seconds
@@ -98,12 +102,10 @@ const App = () => {
 
     const checkAuthStatus = async () => {
       try {
-        // First try to get user from localStorage for immediate display
-        const storedUser = localStorage.getItem('user');
+        const storedUserRaw = localStorage.getItem('user');
+        const storedUser = storedUserRaw ? JSON.parse(storedUserRaw) : null;
         if (storedUser) {
-          setUser(JSON.parse(storedUser));
-          
-          // Initialize notifications early for better UX
+          setUser(storedUser);
           initializeNotifications().then(success => {
             if (success) {
               console.log('Push notifications initialized successfully');
@@ -119,11 +121,15 @@ const App = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.authenticated) {
-            setUser(data.user);
-            // Also update localStorage for backward compatibility
-            localStorage.setItem('user', JSON.stringify(data.user));
+            const mergedUser = {
+              ...(storedUser || {}),
+              ...(data.user || {}),
+              token: data.user?.token || storedUser?.token
+            };
 
-            // Initialize notifications after authentication
+            setUser(mergedUser);
+            localStorage.setItem('user', JSON.stringify(mergedUser));
+
             initializeNotifications().then(success => {
               if (success) {
                 console.log('Push notifications initialized successfully');

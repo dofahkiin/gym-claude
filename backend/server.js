@@ -10,7 +10,9 @@ const webpush = require('web-push');
 const fs = require('fs');
 const path = require('path');
 
-if (!process.env.JWT_SECRET || !process.env.MONGODB_URI) {
+const skipDbConnection = process.env.SKIP_DB_CONNECTION === 'true';
+
+if (!process.env.JWT_SECRET || (!process.env.MONGODB_URI && !skipDbConnection)) {
   throw new Error('Missing required environment variables');
 }
 
@@ -22,7 +24,9 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser()); // Parse cookies
 
-mongoose.connect(process.env.MONGODB_URI);
+if (!skipDbConnection) {
+  mongoose.connect(process.env.MONGODB_URI);
+}
 
 // Models
 const userSchema = new mongoose.Schema({
@@ -140,6 +144,53 @@ const createHistoryEntry = (sets, date = new Date()) => {
     date: date,
     sets: setData
   };
+};
+
+const formatHistoryEntries = (historyEntries = [], exerciseName = '') => {
+  return historyEntries.map(entry => {
+    const sets = Array.isArray(entry.sets)
+      ? entry.sets.map(set => ({
+          weight: typeof set.weight === 'number' ? set.weight : parseFloat(set.weight) || 0,
+          reps: typeof set.reps === 'number' ? set.reps : parseInt(set.reps) || 0
+        }))
+      : [];
+
+    const entryId = entry._id ? entry._id.toString() : undefined;
+
+    return {
+      id: entryId,
+      _id: entryId,
+      date: entry.date || new Date(),
+      exerciseName,
+      sets
+    };
+  });
+};
+
+const historyEntryMatchesId = (entry, historyId) => {
+  if (!entry || !historyId) return false;
+
+  if (entry._id && entry._id.toString() === historyId) {
+    return true;
+  }
+
+  if (entry.id && entry.id.toString() === historyId) {
+    return true;
+  }
+
+  if (entry.date) {
+    const dateValue = new Date(entry.date);
+    if (!isNaN(dateValue)) {
+      if (dateValue.toISOString() === historyId) {
+        return true;
+      }
+      if (dateValue.getTime().toString() === historyId) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 };
 
 // Add helper function to convert exercise name to ID
@@ -326,53 +377,47 @@ app.get('/api/workouts/:day', auth, async (req, res) => {
 });
 
 // Add a new exercise to a workout
-app.post('/api/workouts/:day/exercises', auth, async (req, res) => {
+const addExerciseToWorkoutHandler = async (req, res) => {
   try {
     const { name, sets, restTime } = req.body;
     const workoutDay = parseInt(req.params.day);
-    
+
     if (!name) {
       return res.status(400).json({ error: 'Exercise name is required' });
     }
-    
-    // Find the user's workout for the specified day
+
     const workoutIndex = req.user.workouts.findIndex(w => w.day === workoutDay);
-    
+
     if (workoutIndex === -1) {
       return res.status(404).json({ error: 'Workout day not found' });
     }
-    
-    // Get active program to determine default rest time
-    let defaultRestTime = 90; // Default to 90 seconds if no program is active
-    
-    // If user has an active program, use the program's default rest time
+
+    let defaultRestTime = 90;
     if (req.user.activeProgram) {
-      // Here we would ideally fetch from a database of programs, but since that's in your frontend,
-      // we'll just have this logic in the frontend when the api is called
+      // Placeholder for future program-based defaults
     }
-    
-    // Create the new exercise
+
     const newExercise = {
       name,
       sets: normalizeClientSets(sets),
       history: [],
-      restTime: typeof restTime === 'number' ? restTime : defaultRestTime // Use provided rest time or default
+      restTime: typeof restTime === 'number' ? restTime : defaultRestTime
     };
-    
-    // Add the exercise to the workout
+
     req.user.workouts[workoutIndex].exercises.push(newExercise);
-    
-    // Save the updated user
+
     await req.user.save();
-    
-    res.status(201).json({ 
+
+    res.status(201).json({
       message: 'Exercise added successfully',
       exercise: newExercise
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.post('/api/workouts/:day/exercises', auth, addExerciseToWorkoutHandler);
 
 // Remove an exercise from a workout
 app.delete('/api/workouts/:day/exercises/:exerciseId', auth, async (req, res) => {
@@ -477,19 +522,17 @@ app.patch('/api/exercises/:exerciseId', auth, async (req, res) => {
 });
 
 // Endpoint to update exercise rest time
-app.patch('/api/exercises/:exerciseId/rest-time', auth, async (req, res) => {
+const updateExerciseRestTimeHandler = async (req, res) => {
   try {
     const user = req.user;
     const { restTime } = req.body;
-    
-    // Validate rest time
+
     if (restTime === undefined || restTime < 10 || restTime > 600) {
       return res.status(400).json({ error: 'Invalid rest time. Must be between 10 and 600 seconds.' });
     }
-    
+
     let exerciseUpdated = false;
 
-    // Update the exercise in the user's workouts
     user.workouts = user.workouts.map(workout => {
       workout.exercises = workout.exercises.map(exercise => {
         if (exercise._id.toString() === req.params.exerciseId) {
@@ -510,10 +553,12 @@ app.patch('/api/exercises/:exerciseId/rest-time', auth, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.patch('/api/exercises/:exerciseId/rest-time', auth, updateExerciseRestTimeHandler);
 
 // Endpoint to get exercise history
-app.get('/api/exercises/:exerciseId/history', auth, async (req, res) => {
+const getExerciseHistoryHandler = async (req, res) => {
   try {
     console.log(`Fetching history for exercise ID: ${req.params.exerciseId}`);
     const user = req.user;
@@ -521,20 +566,16 @@ app.get('/api/exercises/:exerciseId/history', auth, async (req, res) => {
     let exerciseName = null;
     let exerciseFound = false;
 
-    // Search through all workouts to find the exercise
     for (const workout of user.workouts) {
       const exercise = workout.exercises.find(
         ex => ex._id.toString() === req.params.exerciseId
       );
-      
+
       if (exercise) {
         exerciseFound = true;
         exerciseName = exercise.name;
         console.log(`Found exercise: ${exerciseName}`);
-        
-        // Initialize history if it doesn't exist
         exerciseHistory = exercise.history || [];
-        
         console.log(`Exercise has ${exerciseHistory.length} history entries`);
         break;
       }
@@ -545,44 +586,71 @@ app.get('/api/exercises/:exerciseId/history', auth, async (req, res) => {
       return res.status(404).json({ error: 'Exercise not found' });
     }
 
-    // Sort history by date in descending order (most recent first)
     exerciseHistory.sort((a, b) => {
       const dateA = new Date(a.date);
       const dateB = new Date(b.date);
-      return dateB - dateA; // Descending order
+      return dateB - dateA;
     });
 
-    // Format history entries to ensure they have all required properties
-    const formattedHistory = exerciseHistory.map(entry => {
-      // Create a properly formatted entry object
-      const formattedEntry = {
-        date: entry.date || new Date(),
-        exerciseName: exerciseName
-      };
-      
-      // Ensure sets are properly formatted
-      if (Array.isArray(entry.sets)) {
-        formattedEntry.sets = entry.sets.map(set => ({
-          weight: typeof set.weight === 'number' ? set.weight : parseFloat(set.weight) || 0,
-          reps: typeof set.reps === 'number' ? set.reps : parseInt(set.reps) || 0
-        }));
-      } else {
-        formattedEntry.sets = [];
-        console.log('Warning: History entry has no sets array');
-      }
-      
-      return formattedEntry;
-    });
-
+    const formattedHistory = formatHistoryEntries(exerciseHistory, exerciseName);
     console.log(`Returning ${formattedHistory.length} formatted history entries`);
-    
-    // Return the formatted history
     res.json(formattedHistory);
   } catch (error) {
     console.error('Error fetching exercise history:', error);
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.get('/api/exercises/:exerciseId/history', auth, getExerciseHistoryHandler);
+
+const deleteExerciseHistoryEntryHandler = async (req, res) => {
+  try {
+    const { exerciseId, historyId } = req.params;
+    const user = req.user;
+    let targetExercise = null;
+
+    for (const workout of user.workouts) {
+      const exercise = workout.exercises.find(
+        ex => ex._id.toString() === exerciseId
+      );
+
+      if (exercise) {
+        targetExercise = exercise;
+        break;
+      }
+    }
+
+    if (!targetExercise) {
+      return res.status(404).json({ error: 'Exercise not found' });
+    }
+
+    if (!Array.isArray(targetExercise.history) || targetExercise.history.length === 0) {
+      return res.status(404).json({ error: 'History entry not found' });
+    }
+
+    const entryIndex = targetExercise.history.findIndex(entry => historyEntryMatchesId(entry, historyId));
+
+    if (entryIndex === -1) {
+      return res.status(404).json({ error: 'History entry not found' });
+    }
+
+    targetExercise.history.splice(entryIndex, 1);
+
+    await user.save();
+
+    const formattedHistory = formatHistoryEntries(targetExercise.history, targetExercise.name);
+
+    res.json({
+      message: 'History entry deleted successfully',
+      history: formattedHistory
+    });
+  } catch (error) {
+    console.error('Error deleting exercise history entry:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+app.delete('/api/exercises/:exerciseId/history/:historyId', auth, deleteExerciseHistoryEntryHandler);
 
 // Add a new set to an exercise
 app.post('/api/exercises/:exerciseId/sets', auth, async (req, res) => {
@@ -666,12 +734,10 @@ app.delete('/api/exercises/:exerciseId/sets/:setIndex', auth, async (req, res) =
   }
 });
 
-// Reset checkboxes
-app.post('/api/workouts/reset', auth, async (req, res) => {
+const resetWorkoutsHandler = async (req, res) => {
   try {
     const user = req.user;
-    
-    // Reset all exercise sets' completed status to false
+
     user.workouts = user.workouts.map(workout => {
       workout.exercises = workout.exercises.map(exercise => {
         exercise.sets = exercise.sets.map(set => ({
@@ -688,7 +754,9 @@ app.post('/api/workouts/reset', auth, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.post('/api/workouts/reset', auth, resetWorkoutsHandler);
 
 // Endpoint to save workout history
 app.post('/api/workouts/complete', auth, async (req, res) => {
@@ -1187,7 +1255,23 @@ app.post('/api/notifications/cancel', auth, async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const startServer = () => {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+};
+
+if (require.main === module) {
+  startServer();
+}
+
+app.handlers = {
+  addExerciseToWorkoutHandler,
+  updateExerciseRestTimeHandler,
+  getExerciseHistoryHandler,
+  deleteExerciseHistoryEntryHandler,
+  resetWorkoutsHandler
+};
+
+module.exports = app;

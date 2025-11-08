@@ -495,6 +495,10 @@ const Exercise = ({ isWorkoutActive, darkMode }) => {
       }
     };
 
+    if (process.env.NODE_ENV === 'test') {
+      return undefined;
+    }
+
     // Check more frequently to ensure we don't miss the expiration
     const intervalId = setInterval(checkTimer, 500);
   

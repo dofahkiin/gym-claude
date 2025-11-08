@@ -186,6 +186,48 @@ export const clearExerciseFromLocalStorage = (exerciseId) => {
 };
 
 /**
+ * Remove a single history entry for an exercise stored locally
+ * @param {string} exerciseId
+ * @param {string} historyId
+ */
+export const removeHistoryEntryFromLocalExercise = (exerciseId, historyId) => {
+  if (!exerciseId || !historyId) {
+    return;
+  }
+
+  const storedExercise = localStorage.getItem(`exercise_${exerciseId}`);
+  if (!storedExercise) {
+    return;
+  }
+
+  try {
+    const exercise = JSON.parse(storedExercise);
+    if (!exercise.history || !Array.isArray(exercise.history)) {
+      return;
+    }
+
+    const filteredHistory = exercise.history.filter(entry => {
+      if (!entry) return false;
+      const entryId = entry._id || entry.id || entry.date;
+      return entryId !== historyId;
+    });
+
+    if (filteredHistory.length === exercise.history.length) {
+      return;
+    }
+
+    const updatedExercise = {
+      ...exercise,
+      history: filteredHistory
+    };
+
+    localStorage.setItem(`exercise_${exerciseId}`, JSON.stringify(updatedExercise));
+  } catch (error) {
+    console.error('Failed to remove local history entry:', error);
+  }
+};
+
+/**
  * Get all modified exercise IDs
  * @returns {Array} - List of exercise IDs that have been modified
  */

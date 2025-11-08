@@ -1,5 +1,5 @@
 // Updated RestTimer.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { Button } from './ui';
 
 const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationChange, editMode = false }) => {
@@ -13,11 +13,11 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
     if (!startTime) {
       setTimeLeft(duration);
       setProgress(100);
-      return;
+    } else {
+      setTimeLeft(Math.max(duration - ((Date.now() - startTime) / 1000), 0));
     }
-
-    // This updates the timer display when duration prop changes
-    setTimeLeft(Math.max(duration - ((Date.now() - startTime) / 1000), 0));
+    // Keep custom duration input in sync when external duration changes
+    setCustomDuration(duration);
   }, [duration, startTime]);
 
   useEffect(() => {
@@ -62,6 +62,9 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
 
   // Handle duration change
   const handleDurationChange = (newDuration) => {
+    if (newDuration === '' || Number.isNaN(newDuration)) {
+      return;
+    }
     // Only allow values between 10 seconds and 10 minutes
     newDuration = Math.max(10, Math.min(600, newDuration));
     
@@ -92,18 +95,36 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
   }
 
   // Show the duration editor when no timer is active or when editing
+  const inputId = useId();
+
   if (editMode || isEditing) {
     return (
       <div className="rest-timer-editor">
         <div className="mb-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label
+            htmlFor={inputId}
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+          >
             Rest Duration (seconds)
           </label>
           <div className="flex items-center">
             <input
               type="number" 
               value={customDuration}
-              onChange={(e) => setCustomDuration(parseInt(e.target.value) || 10)}
+              id={inputId}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === '') {
+                  setCustomDuration('');
+                  return;
+                }
+                const parsed = parseInt(value, 10);
+                if (Number.isNaN(parsed)) {
+                  setCustomDuration('');
+                } else {
+                  setCustomDuration(parsed);
+                }
+              }}
               className="form-input w-20 text-center"
               min="10"
               max="600"
@@ -114,7 +135,7 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => handleDurationChange(customDuration)}
+                onClick={() => handleDurationChange(customDuration === '' ? duration : Number(customDuration))}
               >
                 Save
               </Button>
@@ -122,46 +143,46 @@ const RestTimer = ({ duration = 90, onComplete, startTime, darkMode, onDurationC
           </div>
         </div>
         <div className="flex space-x-2 justify-center">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleDurationChange(30)}
+              className={Number(customDuration) === 30 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
+            >
+              30s
+            </Button>
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => handleDurationChange(30)}
-            className={customDuration === 30 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
-          >
-            30s
-          </Button>
+              onClick={() => handleDurationChange(60)}
+              className={Number(customDuration) === 60 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
+            >
+              1min
+            </Button>
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => handleDurationChange(60)}
-            className={customDuration === 60 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
-          >
-            1min
-          </Button>
+              onClick={() => handleDurationChange(90)}
+              className={Number(customDuration) === 90 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
+            >
+              1:30
+            </Button>
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => handleDurationChange(90)}
-            className={customDuration === 90 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
-          >
-            1:30
-          </Button>
+              onClick={() => handleDurationChange(120)}
+              className={Number(customDuration) === 120 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
+            >
+              2min
+            </Button>
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => handleDurationChange(120)}
-            className={customDuration === 120 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
-          >
-            2min
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleDurationChange(180)}
-            className={customDuration === 180 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
-          >
-            3min
-          </Button>
+              onClick={() => handleDurationChange(180)}
+              className={Number(customDuration) === 180 ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300' : ''}
+            >
+              3min
+            </Button>
         </div>
       </div>
     );

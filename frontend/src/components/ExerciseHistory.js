@@ -1,8 +1,8 @@
 // Complete rewrite of ExerciseHistory.js with robust error handling and logging
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Loading, Alert } from './ui';
-import { getExerciseFromLocalStorage } from '../utils/offlineWorkoutStorage';
+import { getExerciseFromLocalStorage, removeHistoryEntryFromLocalExercise } from '../utils/offlineWorkoutStorage';
 
 const ExerciseHistory = ({ darkMode }) => {
   const { id } = useParams();
@@ -12,6 +12,8 @@ const ExerciseHistory = ({ darkMode }) => {
   const [error, setError] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [debugInfo, setDebugInfo] = useState({});
+  const [editMode, setEditMode] = useState(false);
+  const [deletingEntryId, setDeletingEntryId] = useState(null);
   
   const navigate = useNavigate();
 
@@ -34,6 +36,54 @@ const ExerciseHistory = ({ darkMode }) => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+  }, []);
+
+  const processHistoryEntries = useCallback((entries = []) => {
+    return entries
+      .map((entry, index) => {
+        if (!entry) {
+          return null;
+        }
+
+        let parsedDate = new Date();
+        try {
+          parsedDate = entry.date ? new Date(entry.date) : new Date();
+        } catch (dateError) {
+          console.error('Invalid date in history entry:', dateError);
+        }
+
+        const sets = Array.isArray(entry.sets)
+          ? entry.sets.map(set => {
+              const weight = set && typeof set.weight !== 'undefined' ? set.weight : 0;
+              const reps = set && typeof set.reps !== 'undefined' ? set.reps : 0;
+              return { weight, reps };
+            })
+          : [];
+
+        let fallbackId;
+        try {
+          fallbackId = entry.date ? new Date(entry.date).getTime().toString() : `entry-${index}`;
+        } catch (idError) {
+          console.error('Failed to generate fallback history id:', idError);
+          fallbackId = `entry-${index}`;
+        }
+
+        const entryId = entry._id || entry.id || fallbackId;
+
+        return {
+          ...entry,
+          _id: entryId,
+          id: entryId,
+          date: parsedDate,
+          sets
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB - dateA;
+      });
   }, []);
 
   useEffect(() => {
@@ -141,45 +191,7 @@ const ExerciseHistory = ({ darkMode }) => {
           }
         }
         
-        // Ensure history entries have all required properties
-        const processedHistory = historyToUse.map(entry => {
-          // Ensure there's a date property
-          let date = new Date();
-          try {
-            date = entry.date ? new Date(entry.date) : new Date();
-          } catch (e) {
-            console.error('Invalid date in history entry:', e);
-          }
-          
-          // Ensure sets is an array and each set has the necessary properties
-          let sets = [];
-          if (Array.isArray(entry.sets)) {
-            sets = entry.sets.map(set => {
-              if (!set) return { weight: 0, reps: 0 };
-              
-              return {
-                weight: typeof set.weight !== 'undefined' ? set.weight : 0,
-                reps: typeof set.reps !== 'undefined' ? set.reps : 0
-              };
-            });
-          }
-          
-          // Create a properly structured history entry
-          return {
-            date,
-            sets,
-            // Include any other fields
-            ...entry
-          };
-        });
-        
-        // Sort by date (newest first)
-        processedHistory.sort((a, b) => {
-          const dateA = new Date(a.date);
-          const dateB = new Date(b.date);
-          return dateB - dateA;
-        });
-        
+        const processedHistory = processHistoryEntries(historyToUse);
         console.log(`Processed ${processedHistory.length} history entries`);
         setHistory(processedHistory);
         
@@ -201,7 +213,64 @@ const ExerciseHistory = ({ darkMode }) => {
     };
 
     fetchHistory();
-  }, [id, isOnline, exerciseName]);
+  }, [id, isOnline, exerciseName, processHistoryEntries]);
+
+  const handleDeleteEntry = async (entry) => {
+    if (!entry) return;
+
+    const entryId = entry._id || entry.id;
+    if (!entryId) {
+      setError('Unable to delete this history entry because it is missing an identifier.');
+      return;
+    }
+
+    if (!isOnline) {
+      setError('Reconnect to the internet to delete history entries.');
+      return;
+    }
+
+    const confirmDelete = window.confirm('Delete this session permanently? This cannot be undone.');
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      setDeletingEntryId(entryId);
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user || !user.token) {
+        throw new Error('User not authenticated');
+      }
+
+      const response = await fetch(`/api/exercises/${id}/history/${entryId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to delete history entry');
+      }
+
+      const data = await response.json();
+      const updatedHistory = processHistoryEntries(data.history || []);
+      setHistory(updatedHistory);
+      removeHistoryEntryFromLocalExercise(id, entryId);
+      setError(null);
+
+      if (updatedHistory.length === 0) {
+        setEditMode(false);
+      }
+    } catch (deleteError) {
+      console.error('Error deleting history entry:', deleteError);
+      setError(`Failed to delete history entry: ${deleteError.message}`);
+    } finally {
+      setDeletingEntryId(null);
+    }
+  };
 
   // History entry rendering helper
   const renderHistoryEntry = (entry, index) => {
@@ -222,6 +291,9 @@ const ExerciseHistory = ({ darkMode }) => {
       // Intentionally log in a way that exposes the full structure
       console.log(`Entry date: ${entry.date}`);
       console.log(`Entry sets: ${JSON.stringify(entry.sets)}`);
+      const entryId = entry._id || entry.id || index;
+      const deleteDisabled = deletingEntryId === entryId || !isOnline || !entryId;
+      const deleteLabel = deletingEntryId === entryId ? 'Deleting...' : 'Delete';
       
       // Check if sets array exists and has elements
       const setsArray = entry.sets;
@@ -246,19 +318,31 @@ const ExerciseHistory = ({ darkMode }) => {
       
       return (
         <Card 
-          key={index} 
+          key={entryId} 
           className={index === 0 ? 'ring-2 ring-indigo-500 dark:ring-indigo-600' : ''}
         >
           <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-750 px-6 py-4 border-b dark:border-gray-700">
-            <div className="flex flex-wrap justify-between items-center">
+            <div className="flex flex-wrap justify-between items-center gap-3">
               <h2 className="font-semibold text-gray-800 dark:text-gray-200">
                 {formattedDate}
               </h2>
-              {index === 0 && (
-                <span className="bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 text-xs px-2 py-1 rounded-full">
-                  Most Recent
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {index === 0 && (
+                  <span className="bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-300 text-xs px-2 py-1 rounded-full">
+                    Most Recent
+                  </span>
+                )}
+                {editMode && (
+                  <button
+                    onClick={() => handleDeleteEntry(entry)}
+                    disabled={deleteDisabled}
+                    className={`text-sm font-medium px-3 py-1 rounded-full border transition-colors ${deleteDisabled ? 'text-gray-400 border-gray-300 dark:border-gray-600 cursor-not-allowed' : 'text-red-600 border-red-300 hover:bg-red-50 dark:text-red-300 dark:border-red-300/60 dark:hover:bg-red-900/20'}`}
+                    title={!isOnline ? 'Reconnect to delete history entries' : ''}
+                  >
+                    {deleteLabel}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           <div className="p-6">
@@ -369,26 +453,58 @@ const ExerciseHistory = ({ darkMode }) => {
           </h1>
           <p className="text-gray-600 dark:text-gray-300">Track your progress over time</p>
         </div>
-        <Button
-          onClick={() => navigate(-1)}
-          variant="secondary"
-          rounded
-          className="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 flex items-center space-x-2"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-          </svg>
-          <span>Back</span>
-        </Button>
+        <div className="flex w-full md:w-auto flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {history.length > 0 && (
+            <Button
+              onClick={() => setEditMode(prev => !prev)}
+              variant="secondary"
+              rounded
+              className={`flex items-center justify-center space-x-2 ${editMode ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-200' : 'bg-white/20 text-gray-800 dark:text-gray-200'}`}
+            >
+              {editMode ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span>Done</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                  <span>Edit</span>
+                </>
+              )}
+            </Button>
+          )}
+          <Button
+            onClick={() => navigate(-1)}
+            variant="secondary"
+            rounded
+            className="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 flex items-center justify-center space-x-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+            <span>Back</span>
+          </Button>
+        </div>
       </div>
       
       {/* Debug panel (only in development) */}
       {renderDebugPanel()}
-      
+
       {/* Error message if any */}
       {error && (
         <Alert type="error" className="mb-4">
           {error}
+        </Alert>
+      )}
+
+      {editMode && (
+        <Alert type="warning" className="mb-4">
+          Delete mode enabled. Removing a session is permanent and cannot be undone.
         </Alert>
       )}
       
