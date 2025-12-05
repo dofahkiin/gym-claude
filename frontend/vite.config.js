@@ -16,6 +16,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
+    globals: true,
+    pool: 'threads',
   },
   esbuild: {
     loader: 'jsx',
