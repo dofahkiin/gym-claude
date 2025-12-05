@@ -2,15 +2,16 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import ExerciseHistory from '../ExerciseHistory';
-import { 
+import {
   getExerciseFromLocalStorage,
   removeHistoryEntryFromLocalExercise
 } from '../../utils/offlineWorkoutStorage';
 
-jest.mock('../../utils/offlineWorkoutStorage', () => ({
-  getExerciseFromLocalStorage: jest.fn(),
-  removeHistoryEntryFromLocalExercise: jest.fn()
+vi.mock('../../utils/offlineWorkoutStorage', () => ({
+  getExerciseFromLocalStorage: vi.fn(),
+  removeHistoryEntryFromLocalExercise: vi.fn()
 }));
 
 const setNavigatorOnline = (value) => {
@@ -44,16 +45,16 @@ const renderComponent = () =>
 
 beforeEach(() => {
   localStorage.clear();
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   setNavigatorOnline(true);
-  window.confirm = jest.fn(() => true);
-  const fetchSpy = jest.fn();
+  window.confirm = vi.fn(() => true);
+  const fetchSpy = vi.fn();
   global.fetch = fetchSpy;
   window.fetch = fetchSpy;
 });
 
 afterEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 test('enters edit mode and deletes a history entry via the API', async () => {
@@ -67,7 +68,7 @@ test('enters edit mode and deletes a history entry via the API', async () => {
 
   const user = userEvent.setup();
 
-  const fetchMock = jest
+  const fetchMock = vi
     .fn()
     .mockResolvedValueOnce({
       ok: true,

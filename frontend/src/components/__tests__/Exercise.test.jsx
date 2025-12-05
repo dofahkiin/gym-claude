@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import Exercise from '../Exercise';
 import {
   getExerciseFromLocalStorage,
@@ -10,11 +11,11 @@ import {
   markWorkoutDayAsModified
 } from '../../utils/offlineWorkoutStorage';
 
-jest.mock('../../utils/offlineWorkoutStorage', () => ({
-  getExerciseFromLocalStorage: jest.fn(),
-  getWorkoutFromLocalStorage: jest.fn(),
-  saveExerciseToLocalStorage: jest.fn(),
-  markWorkoutDayAsModified: jest.fn()
+vi.mock('../../utils/offlineWorkoutStorage', () => ({
+  getExerciseFromLocalStorage: vi.fn(),
+  getWorkoutFromLocalStorage: vi.fn(),
+  saveExerciseToLocalStorage: vi.fn(),
+  markWorkoutDayAsModified: vi.fn()
 }));
 
 const setNavigatorOnline = (value) => {
@@ -51,9 +52,9 @@ const renderExercise = () =>
 
 beforeEach(() => {
   localStorage.clear();
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   setNavigatorOnline(false);
-  global.fetch = jest.fn();
+  global.fetch = vi.fn();
 
   getExerciseFromLocalStorage.mockImplementation(() => buildExercise());
   getWorkoutFromLocalStorage.mockReturnValue({
@@ -63,7 +64,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 test('enables edit mode to add and remove sets offline', async () => {

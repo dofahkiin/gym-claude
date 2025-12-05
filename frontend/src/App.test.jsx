@@ -1,25 +1,26 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import { beforeEach, expect, test, vi } from 'vitest';
 import App from './App';
 import {
   getAllWorkoutsFromLocalStorage,
   getModifiedExerciseIds
 } from './utils/offlineWorkoutStorage';
 
-jest.mock('./utils/offlineWorkoutStorage', () => {
-  const actual = jest.requireActual('./utils/offlineWorkoutStorage');
+vi.mock('./utils/offlineWorkoutStorage', async () => {
+  const actual = await vi.importActual('./utils/offlineWorkoutStorage');
   return {
     ...actual,
-    getModifiedExerciseIds: jest.fn(() => []),
-    getAllWorkoutsFromLocalStorage: jest.fn(() => []),
-    saveAllWorkoutsToLocalStorage: jest.fn(),
-    getModifiedWorkoutDays: jest.fn(() => []),
-    syncModifiedExercisesWithServer: jest.fn(),
-    completeWorkoutLocally: jest.fn(),
-    markWorkoutDayAsModified: jest.fn(),
-    getExerciseFromLocalStorage: jest.fn(),
-    getWorkoutFromLocalStorage: jest.fn(),
-    saveExerciseToLocalStorage: jest.fn()
+    getModifiedExerciseIds: vi.fn(() => []),
+    getAllWorkoutsFromLocalStorage: vi.fn(() => []),
+    saveAllWorkoutsToLocalStorage: vi.fn(),
+    getModifiedWorkoutDays: vi.fn(() => []),
+    syncModifiedExercisesWithServer: vi.fn(),
+    completeWorkoutLocally: vi.fn(),
+    markWorkoutDayAsModified: vi.fn(),
+    getExerciseFromLocalStorage: vi.fn(),
+    getWorkoutFromLocalStorage: vi.fn(),
+    saveExerciseToLocalStorage: vi.fn()
   };
 });
 
@@ -31,11 +32,11 @@ const setNavigatorOnline = (value) => {
 };
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
   localStorage.clear();
   window.history.pushState({}, 'Test', '/gym/');
   setNavigatorOnline(true);
-  global.fetch = jest.fn();
+  global.fetch = vi.fn();
 });
 
 test('routes unauthenticated visitors to the login experience', async () => {

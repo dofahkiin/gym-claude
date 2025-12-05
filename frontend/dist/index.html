@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="description" content="Track your gym workouts and progress with GymTracker" />
+    <title>GymTracker - Your Fitness Progress Partner</title>
+
+    <link rel="icon" href="/gym/favicon.ico" />
+    <link rel="apple-touch-icon" href="/gym/logo192.png" />
+    <link rel="manifest" href="/gym/manifest.json" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="GymTracker" />
+
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#4f46e5" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#312e81" />
+
+    <style>
+      :root {
+        --color-primary: #4f46e5;
+        --color-primary-dark: #312e81;
+      }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: linear-gradient(to bottom right, #f9fafb, #f3f4f6);
+        min-height: 100vh;
+      }
+
+      .dark body {
+        background: linear-gradient(to bottom right, #111827, #1f2937);
+        color: #f3f4f6;
+      }
+
+      .app-shell {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+
+      .main-header {
+        background: linear-gradient(to right, #4f46e5, #9333ea);
+        color: white;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        padding: 1rem;
+      }
+
+      .dark .main-header {
+        background: linear-gradient(to right, #3730a3, #6b21a8);
+      }
+
+      .loading-spinner {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .loading-spinner svg {
+        animation: spin 1s linear infinite;
+        width: 3rem;
+        height: 3rem;
+        color: #4f46e5;
+      }
+
+      .dark .loading-spinner svg {
+        color: #818cf8;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .loading-spinner p {
+        margin-top: 0.5rem;
+        font-weight: 500;
+        color: #6b7280;
+      }
+
+      .dark .loading-spinner p {
+        color: #9ca3af;
+      }
+    </style>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
+    />
+
+    <script>
+      const savedTheme = localStorage.getItem('darkMode');
+      if (savedTheme === 'true') {
+        document.documentElement.classList.add('dark');
+        const baseThemeMeta = document.querySelector('meta[name="theme-color"]:not([media])');
+        if (baseThemeMeta) {
+          baseThemeMeta.setAttribute('content', '#312e81');
+        }
+      }
+    </script>
+    <script type="module" crossorigin src="/gym/assets/index-DS_2NtS5.js"></script>
+    <link rel="stylesheet" crossorigin href="/gym/assets/index-B0FIWVL_.css">
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+
+    <div id="app-shell" class="app-shell">
+      <header class="main-header">
+        <div style="display: flex; align-items: center; padding: 0.5rem 1rem;">
+          <div style="display: flex; align-items: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+              <path d="M5 8h1a4 4 0 0 1 0 8H5"></path>
+              <path d="M2 8h2v8H2z"></path>
+              <path d="M20 8h2v8h-2z"></path>
+              <path d="M7 12h10"></path>
+            </svg>
+            <span style="font-size: 1.25rem; font-weight: bold; margin-left: 0.5rem;">GymTracker</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="loading-spinner">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p>Loading GymTracker...</p>
+      </div>
+    </div>
+
+    <div id="root"></div>
+
+
+  </body>
+</html>

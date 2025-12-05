@@ -1,0 +1,60 @@
+{
+  "short_name": "GymTracker",
+  "name": "Gym Tracker App",
+  "gcm_sender_id": "103953800507",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/gym/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#4f46e5",
+  "background_color": "#ffffff",
+  "categories": ["fitness", "health", "sports"],
+  "description": "Track your gym workouts and progress with GymTracker",
+  "scope": "/gym/",
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Start Workout",
+      "short_name": "Workout",
+      "description": "Start a new workout session",
+      "url": "/gym/?action=start-workout"
+    },
+    {
+      "name": "View History",
+      "short_name": "History",
+      "description": "View your workout history",
+      "url": "/gym/?view=history"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot1.png",
+      "sizes": "320x568",
+      "type": "image/png"
+    }
+  ]
+}
